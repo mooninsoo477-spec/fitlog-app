@@ -1,0 +1,14 @@
+{
+  "name": "FitLog 운동·식단 기록",
+  "short_name": "FitLog",
+  "description": "운동, 식단, 인바디를 한곳에 기록하는 무료 웹앱. 기록은 내 기기에만 저장돼요.",
+  "start_url": "./#home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4fbf7",
+  "theme_color": "#72d1ae",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
