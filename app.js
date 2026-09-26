@@ -890,8 +890,30 @@
       <div class="parsed-foot">${volume ? `총 볼륨 <b>${volume.toLocaleString()}kg</b> · ` : ''}${estimate.strengthSets ? `${estimate.strengthSets}세트 · ` : ''}${estimate.minutes ? `${estimate.estimatedTime ? '약 ' : ''}${estimate.minutes}분 · ` : ''}체중 ${estimate.bodyWeight}kg 기준</div>`;
   }
 
+  // 근력/유산소 선택에 따라 예시 문구와 보이는 칸을 바꾼다.
+  const WORKOUT_GUIDE = {
+    strength: ['예: 스쿼트 60kg 10x5\n벤치프레스 40kg 12/10/8\n푸쉬업 20회 3세트', '한 줄에 한 종목씩 <b>무게 횟수 세트</b> 순서로 적어요. 세트마다 다르면 <b>12/10/8</b>처럼 적으면 돼요.'],
+    cardio: ['예: 러닝 30분\n자전거 40분\n축구 90분', '<b>종목과 시간</b>만 적으면 소모 칼로리를 계산해요. 기기에 칼로리가 나오면 아래에 입력하세요.'],
+    both: ['예: 스쿼트 60kg 10x5\n러닝 20분', '근력은 <b>무게 횟수 세트</b>, 유산소는 <b>종목 시간</b>으로 한 줄씩 적어요.']
+  };
+
   function syncCardioField() {
-    $('#cardioField')?.classList.toggle('hidden', !selectedGroups().some(group => /유산소/.test(group)));
+    const groups = selectedGroups();
+    const strength = groups.includes('근력');
+    const cardio = groups.includes('유산소');
+    const [placeholder, hint] = WORKOUT_GUIDE[strength && cardio ? 'both' : cardio ? 'cardio' : 'strength'];
+    if ($('#workoutNote')) $('#workoutNote').placeholder = placeholder;
+    if ($('#workoutHint')) $('#workoutHint').innerHTML = hint;
+    $('#cardioField')?.classList.toggle('hidden', !cardio);
+  }
+
+  // 예전 기록의 세부 분류(밀기·당기기·하체·전신·축구)를 근력/유산소로 바꿔 읽는다.
+  function simpleKinds(group) {
+    const text = String(group || '');
+    const kinds = [];
+    if (/밀기|당기기|하체|전신|근력/.test(text)) kinds.push('근력');
+    if (/유산소|축구|러닝|걷기|cardio/i.test(text)) kinds.push('유산소');
+    return kinds.length ? kinds : ['근력'];
   }
 
   function setRpe(value) {
@@ -965,15 +987,12 @@
       const state = readState();
       const last = Object.keys(state.logs || {}).filter(validDate).sort().reverse().map(date => (state.logs[date].workouts || []).at(-1)).find(Boolean);
       if (!last) return showToast('불러올 운동 기록이 아직 없어요.');
-      const groups = String(last.group || last.type || '').split('·');
-      document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = groups.includes(input.value); });
-      note.value = last.note || last.name || '';
-      syncCardioField();
-      renderWorkoutDraft();
+      fillWorkoutFrom(last);
       showToast('최근 기록을 불러왔어요. 무게·횟수만 바꿔 저장하세요.');
     };
     $('#saveWorkout').onclick = saveWorkoutRecord;
     setRpe(null);
+    syncCardioField();
   }
 
 
@@ -1056,8 +1075,8 @@
   }
 
   function fillWorkoutFrom(workout) {
-    const groups = String(workout.group || workout.type || '').split('·');
-    document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = groups.includes(input.value); });
+    const kinds = simpleKinds(workout.group || workout.type);
+    document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = kinds.includes(input.value); });
     $('#workoutNote').value = workout.note || workout.name || '';
     syncCardioField();
     renderWorkoutDraft();
