@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const STATE_KEY = 'fitlog:dashboard:v3';
+  const STATE_KEY = 'fitlog-public:v1';
   const $ = (selector, root = document) => root.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   const parse = (value, fallback = null) => { try { return JSON.parse(value); } catch { return fallback; } };
@@ -1317,6 +1317,23 @@
     type.value = hour >= 4 && hour < 10 ? '아침' : hour >= 10 && hour < 15 ? '점심' : hour >= 15 && hour < 21 ? '저녁' : '간식';
   }
 
+  // ---- 친구에게 공유 ----
+  function installShare() {
+    const button = $('#shareApp');
+    if (!button) return;
+    const url = location.origin + location.pathname;
+    button.onclick = async () => {
+      const data = { title: 'FitLog', text: '운동·식단·인바디를 한곳에 기록하는 무료 앱이에요. 가입 없이 바로 쓰고 기록은 내 폰에만 저장돼요.', url };
+      try {
+        if (navigator.share) return await navigator.share(data);
+        await navigator.clipboard.writeText(`${data.text}\n${url}`);
+        showToast('소개 문구와 링크를 복사했어요. 카톡에 붙여넣어 보내세요.');
+      } catch (error) {
+        if (error?.name !== 'AbortError') showToast(url);
+      }
+    };
+  }
+
   function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -1371,6 +1388,7 @@
   installWorkoutForm();
   installCheckin();
   installMealForm();
+  installShare();
   installProfile();
   installBodyGoals();
   renderRealReportCharts();
