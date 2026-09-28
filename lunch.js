@@ -126,14 +126,29 @@
   // 2. 급식표 해석: 나이스식 표(날짜·메뉴 열)와 달력식(칸마다 날짜+메뉴) 모두 지원
   // ---------------------------------------------------------------
   const MEAL_LABEL = /^\[?\s*(조식|중식|석식|아침|점심|저녁)\s*\]?$/;
-  const SKIP_LINE = /원산지|알레르기|알러지|영양|탄수화물|단백질|지방|칼슘|철분|비타민|나트륨|식단표|급식표|학교|^메뉴$|^식단$|^요일$|^[월화수목금토일]$|^[월화수목금토일]요일$/;
+  // 메뉴가 아닌 안내 문구. 영양소 이름은 NUTRIENT_LINE이 줄 시작에서 판별한다("영양밥", "저지방우유"는 메뉴로 남긴다).
+  const SKIP_LINE = /원산지|알레르기|알러지|영양\s*(정보|성분|소|표|사)|식단표|급식표|학교|^메뉴$|^식단$|^요일$|^[월화수목금토일]$|^[월화수목금토일]요일$/;
   const HOLIDAY = /휴업|방학|재량|공휴|휴일|급식\s*없음|미실시|^없음$/;
   // 급식표 아래에 붙는 영양 정보 줄(에너지 612kcal, 철 3.2mg 등)을 메뉴로 읽지 않는다.
   const NUTRIENT_LINE = /^(에너지|열량|탄수화물|단백질|지방|칼슘|철분?|비타민\s*[A-Za-z0-9]*|리보플라빈|티아민|나트륨|식이섬유|콜레스테롤|당류|포화지방|레티놀|아연|칼륨|엽산)(?=$|\s|[(:：\d])|\d\s*(mg|㎎|μg|ug|RE)(?![가-힣])/i;
-  const isMenuItem = line => /[가-힣a-zA-Z]/.test(line) && line.length <= 30 && !SKIP_LINE.test(line) && !NUTRIENT_LINE.test(line) && !/kcal|칼로리|열량|㎉/i.test(line) && !MEAL_LABEL.test(line);
+  const NUTRIENT_EN = /^(energy|protein|fat|carbohydrates?|calcium|iron|sodium|vitamin\s*[a-z0-9]*|riboflavin|thiamin|fiber|ca|fe|na)(?=$|\s|[(:\d])/i;
+  const isMenuItem = raw => {
+    const line = normalizeText(raw).trim();
+    const compact = line.replace(/\s+/g, '');
+    return /[가-힣a-zA-Z]/.test(line) && line.length <= 30
+      && !SKIP_LINE.test(line) && !SKIP_LINE.test(compact)
+      && !NUTRIENT_LINE.test(line) && !NUTRIENT_LINE.test(compact) && !NUTRIENT_EN.test(line)
+      && !/kcal|칼로리|열량|㎉/i.test(line) && !MEAL_LABEL.test(compact);
+  };
+
+  // 엑셀·HTML에서 넘어온 보이지 않는 문자와 전각 문자를 정리한다.
+  const normalizeText = value => String(value ?? '').normalize('NFC')
+    .replace(/[\u200B-\u200F\u2060\uFEFF\u00AD]/g, '')
+    .replace(/[\u00A0\u3000]/g, ' ')
+    .replace(/[\uFF01-\uFF5E]/g, char => String.fromCharCode(char.charCodeAt(0) - 0xFEE0));
 
   function cleanItem(raw) {
-    let text = String(raw || '').replace(/<[^>]+>/g, ' ').replace(/[*#★☆◆◇●○■□▶▷※@♥♡]/g, '').replace(/\s+/g, ' ').trim();
+    let text = normalizeText(raw).replace(/<[^>]+>/g, ' ').replace(/[*#★☆◆◇●○■□▶▷※@♥♡]/g, '').replace(/\s+/g, ' ').trim();
     for (let pass = 0; pass < 3; pass++) {
       text = text.replace(/\s*\(\s*[\d.,\s]+\)\s*$/, '').replace(/(?<=[가-힣a-zA-Z)\]])\s*\d{1,2}(?:\s*[.,]\s*\d{1,2})*\s*\.\s*$/, '').trim();
     }
@@ -143,7 +158,7 @@
   const kcalOf = value => { const match = String(value || '').replace(/,/g, '').match(/(\d{3,4}(?:\.\d+)?)\s*(?:kcal|㎉|칼로리)?/i); return match ? Math.round(+match[1]) : null; };
 
   function splitMenu(value) {
-    const lines = String(value || '').split(/<br\s*\/?>|\r?\n|,|\//i).map(cleanItem).filter(Boolean);
+    const lines = normalizeText(value).split(/<br\s*\/?>|\r?\n|,|\//i).map(cleanItem).filter(Boolean);
     return lines.filter(isMenuItem);
   }
 
@@ -384,7 +399,7 @@
     if (!list.length) throw new Error('AI 결과가 비어 있어요.');
     return {
       source: 'ai', goal, target, meal: entry.meal, menuKcal: entry.kcal || null, createdAt: new Date().toISOString(),
-      items: list.map(item => ({
+      items: list.filter(item => isMenuItem(String(item.name || ''))).map(item => ({
         name: String(item.name || '음식'), role: estimateFood(String(item.name || '')).role,
         portion: Math.min(2, Math.max(0, Math.round((+item.servings || 0) * 4) / 4)),
         kcal: Math.max(0, Math.round(+item.kcalPerServing || 0)), protein: Math.max(0, +item.proteinPerServing || 0),
@@ -400,7 +415,7 @@
     const list = state.lunch?.days?.[date] || [];
     return list.find(item => item.meal === '중식') || list[0] || null;
   };
-  const GUIDE_VERSION = 'v2';
+  const GUIDE_VERSION = 'v3';
   const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}` : '';
 
   function displayDate(state) {
@@ -510,6 +525,7 @@
     card.className = 'card lunch-card';
     const guide = ensureGuide(date);
     if (!guide) { card.remove(); return; }
+    guide.items = guide.items.filter(item => isMenuItem(item.name));
     const today = dateKey(new Date());
     const label = date === today ? '오늘 점심 급식' : `${prettyDate(date)} 점심 급식`;
     const kcal = sumOf(guide.items, 'kcal');
@@ -591,6 +607,10 @@
         return { ...entry, items };
       }).filter(entry => entry.items.length);
       if (kept.length) state.lunch.days[date] = kept; else { delete state.lunch.days[date]; changed = true; }
+    });
+    Object.values(state.lunch?.guides || {}).forEach(guide => {
+      const items = (guide.items || []).filter(item => isMenuItem(item.name));
+      if (items.length !== (guide.items || []).length) { guide.items = items; changed = true; }
     });
     if (changed) writeState(state);
   }
