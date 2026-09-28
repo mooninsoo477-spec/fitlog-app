@@ -157,9 +157,22 @@
 
   const kcalOf = value => { const match = String(value || '').replace(/,/g, '').match(/(\d{3,4}(?:\.\d+)?)\s*(?:kcal|㎉|칼로리)?/i); return match ? Math.round(+match[1]) : null; };
 
+  // "* 에너지/단백질/칼슘/철" 같은 안내 줄. 빗금으로 먼저 쪼개면 영양소 이름이 메뉴처럼 보이므로 줄째 버린다.
+  const NOTE_LINE = /^\s*[*※☞▶►◎]|^\s*[[(]?\s*(에너지|열량|영양\s*(정보|성분|소|표)|원산지|알레르기|알러지)/;
+  const nutrientList = line => line.split(/[,/·]/).filter(part => NUTRIENT_LINE.test(normalizeText(part).replace(/\s+/g, ''))).length >= 2;
+
   function splitMenu(value) {
-    const lines = normalizeText(value).split(/<br\s*\/?>|\r?\n|,|\//i).map(cleanItem).filter(Boolean);
-    return lines.filter(isMenuItem);
+    const lines = normalizeText(value).split(/<br\s*\/?>|\r?\n/i).map(line => line.trim()).filter(Boolean);
+    const parts = [];
+    for (let index = 0; index < lines.length; index++) {
+      if (NOTE_LINE.test(lines[index]) || nutrientList(lines[index])) {
+        // 안내 줄이 칸 너비 때문에 다음 줄로 넘어간 경우("…칼슘/" ↵ "철")도 함께 버린다.
+        while (/[,/]\s*$/.test(lines[index]) && index + 1 < lines.length) index++;
+        continue;
+      }
+      parts.push(...lines[index].split(/[,/]/));
+    }
+    return parts.map(cleanItem).filter(Boolean).filter(isMenuItem);
   }
 
   function monthContext(sheets, fileName) {
@@ -227,9 +240,12 @@
       const kcalCol = find(/칼로리|열량|kcal|CAL_INFO/i);
       const mealCol = find(/식사명|식사\s*구분|구분|끼니|MMEAL/i);
       const found = [];
+      let lastDate = null;
       for (let row = headerRow + 1; row < rows.length; row++) {
         const cells = rows[row] || [];
-        const date = parseDate(cells[dateCol], context);
+        const parsedDate = parseDate(cells[dateCol], context);
+        if (parsedDate) lastDate = parsedDate;
+        const date = parsedDate || (String(cells[dateCol] ?? '').trim() ? null : lastDate);
         const items = splitMenu(cells[menuCol]);
         if (!date || !items.length) continue;
         const mealText = String(cells[mealCol] || '');
@@ -251,11 +267,15 @@
       const date = parseDate(lines[0].replace(/\(.*\)/, ''), context);
       if (!date) return;
       let menuLines = lines.slice(1);
-      for (let step = 1; !menuLines.length && step <= 3; step++) {
-        const below = lineList(rows[rowIndex + step]?.[colIndex]);
-        if (!below.length) continue;
-        if (isDateLine(below[0])) break;
-        menuLines = below;
+      if (!menuLines.length) {
+        let gap = 0;
+        for (let step = 1; step <= 25; step++) {
+          const below = lineList(rows[rowIndex + step]?.[colIndex]);
+          if (!below.length) { if (menuLines.length && ++gap >= 2) break; continue; }
+          if (isDateLine(below[0])) break;
+          gap = 0;
+          menuLines.push(...below);
+        }
       }
       if (menuLines.some(line => HOLIDAY.test(line)) && menuLines.length <= 2) return;
       sectionsOf(menuLines).filter(section => section.items.length >= 2).forEach(section => found.push({ date, ...section }));
@@ -291,6 +311,7 @@
     [/죽$/, 'staple', 250, 7, 45, 4],
     [/떡볶이|떡꼬치|라볶이/, 'staple', 350, 7, 70, 5],
     [/빵|토스트|버거|샌드위치|피자|베이글|또띠아|팬케이크|핫케이크/, 'staple', 300, 9, 42, 10],
+    [/부대찌개|감자탕|순대국|뼈해장국|해장국|육개장|닭개장|곰탕|갈비탕|설렁탕|짜글이|돼지국밥/, 'soup', 300, 16, 18, 17],
     [/국$|탕$|찌개|전골|스프$|수프$|냉국|개장/, 'soup', 120, 7, 8, 6],
     [/멸치|진미채|오징어채|김자반|김구이|^김$|파래/, 'side', 70, 5, 6, 3],
     [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|부침|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
@@ -333,7 +354,7 @@
     protein: portion => portion > 1 ? '단백질 채우기 · 더 받을 수 있으면' : '단백질 반찬은 꼭 챙기기',
     veg: portion => portion > 1 ? '배를 채우는 저칼로리 반찬 · 넉넉히' : '마음껏 먹어도 좋아요',
     kimchi: () => '나트륨이 많아 적당히',
-    soup: () => '건더기 위주, 국물은 반만',
+    soup: portion => portion < 1 ? '국물은 빼고 건더기만 절반' : '건더기 위주, 국물은 반만',
     fried: portion => portion < 1 ? '기름져서 절반만' : '적당히',
     treat: portion => portion === 0 ? '오늘은 건너뛰기' : portion < 1 ? '절반만' : '가볍게',
     dairy: () => '단백질·칼슘 보충',
@@ -373,6 +394,10 @@
       items.filter(item => item.role === 'treat').forEach(item => { item.portion = 0; });
       fitStaple();
     }
+    // 그래도 많으면 부대찌개·감자탕 같은 진한 찌개·탕을 건더기만 절반으로 줄인다.
+    if (cut && total('kcal') > target.kcal * 1.1) {
+      items.filter(item => item.role === 'soup' && item.kcal >= 250).forEach(item => { item.portion = 0.5; });
+    }
     // 메뉴가 가벼우면 저칼로리 채소 반찬으로 포만감을 채운다(감량 중엔 밥은 그대로 둔다).
     if (total('kcal') < target.kcal * 0.85) {
       items.filter(item => item.role === 'veg').forEach(item => { item.portion = 1.5; });
@@ -383,7 +408,11 @@
     const kcalGap = Math.round(target.kcal - total('kcal'));
     if (proteinGap >= 10) tips.push(`단백질이 약 ${proteinGap}g 부족해요. 오후 간식으로 우유·계란·두부·닭가슴살을 더해 보세요.`);
     if (kcalGap > target.kcal * 0.15) tips.push(cut ? `메뉴가 가벼워 목표보다 약 ${kcalGap}kcal 적어요. 감량 중이라면 이대로 괜찮아요.` : `목표보다 약 ${kcalGap}kcal 적어요. 밥을 조금 더 받거나 간식으로 채워 보세요.`);
-    else if (-kcalGap > target.kcal * 0.15) tips.push(`목표보다 약 ${-kcalGap}kcal 많아요. 튀김·후식부터 줄여 보세요.`);
+    else if (-kcalGap > target.kcal * 0.1) {
+      // 실제 메뉴 중에서 줄일 만한 것을 골라 이름으로 안내한다.
+      const reducible = items.filter(item => item.portion > 0 && (['fried', 'treat', 'carbside'].includes(item.role) || (item.role === 'soup' && item.kcal >= 250))).map(item => item.name);
+      tips.push(`목표보다 약 ${-kcalGap}kcal 많아요. ${reducible.length ? `${reducible.slice(0, 2).join('·')} 양을 조금 더 줄여 보세요.` : '반찬을 조금씩 덜어 양을 맞춰 보세요.'}`);
+    }
     return {
       source: 'local', goal, target, tips, meal: entry.meal, menuKcal: entry.kcal || null, createdAt: new Date().toISOString(),
       items: items.map(item => ({ name: item.name, role: item.role, portion: item.portion, kcal: item.kcal, protein: item.protein, carbs: item.carbs, fat: item.fat, note: ROLE_NOTES[item.role](item.portion) }))
@@ -415,7 +444,7 @@
     const list = state.lunch?.days?.[date] || [];
     return list.find(item => item.meal === '중식') || list[0] || null;
   };
-  const GUIDE_VERSION = 'v3';
+  const GUIDE_VERSION = 'v4';
   const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}` : '';
 
   function displayDate(state) {
