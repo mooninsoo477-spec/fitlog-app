@@ -1317,6 +1317,19 @@
     type.value = hour >= 4 && hour < 10 ? '아침' : hour >= 10 && hour < 15 ? '점심' : hour >= 15 && hour < 21 ? '저녁' : '간식';
   }
 
+  // ---- 방문 통계 (선택) ----
+  // index.html의 FITLOG_STATS_CODE에 GoatCounter 코드가 있을 때만 앱을 연 횟수를 센다. 기록 내용은 보내지 않는다.
+  function installStats() {
+    const code = String(window.FITLOG_STATS_CODE || '').trim();
+    if (!/^[a-z0-9-]{2,40}$/.test(code) || document.querySelector('[data-goatcounter]')) return;
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://gc.zgo.at/count.js';
+    script.dataset.goatcounter = `https://${code}.goatcounter.com/count`;
+    document.head.appendChild(script);
+    $('#statsNotice')?.classList.remove('hidden');
+  }
+
   // ---- 친구에게 공유 ----
   function installShare() {
     const button = $('#shareApp');
@@ -1375,6 +1388,9 @@
     document.head.appendChild(style);
   }
 
+  // 급식표 모듈(lunch.js)처럼 따로 불러오는 기능이 앱의 저장·알림을 쓸 수 있게 열어둔다.
+  window.FitLogCore = { readState, writeState, showToast, dateKey, esc, goTo };
+
   if (migrateMonthlyLog()) {
     location.reload();
     return;
@@ -1389,6 +1405,7 @@
   installCheckin();
   installMealForm();
   installShare();
+  installStats();
   installProfile();
   installBodyGoals();
   renderRealReportCharts();
