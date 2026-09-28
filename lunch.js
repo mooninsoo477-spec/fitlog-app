@@ -128,6 +128,9 @@
   const MEAL_LABEL = /^\[?\s*(조식|중식|석식|아침|점심|저녁)\s*\]?$/;
   const SKIP_LINE = /원산지|알레르기|알러지|영양|탄수화물|단백질|지방|칼슘|철분|비타민|나트륨|식단표|급식표|학교|^메뉴$|^식단$|^요일$|^[월화수목금토일]$|^[월화수목금토일]요일$/;
   const HOLIDAY = /휴업|방학|재량|공휴|휴일|급식\s*없음|미실시|^없음$/;
+  // 급식표 아래에 붙는 영양 정보 줄(에너지 612kcal, 철 3.2mg 등)을 메뉴로 읽지 않는다.
+  const NUTRIENT_LINE = /^(에너지|열량|탄수화물|단백질|지방|칼슘|철분?|비타민\s*[A-Za-z0-9]*|리보플라빈|티아민|나트륨|식이섬유|콜레스테롤|당류|포화지방|레티놀|아연|칼륨|엽산)(?=$|\s|[(:：\d])|\d\s*(mg|㎎|μg|ug|RE)(?![가-힣])/i;
+  const isMenuItem = line => /[가-힣a-zA-Z]/.test(line) && line.length <= 30 && !SKIP_LINE.test(line) && !NUTRIENT_LINE.test(line) && !/kcal|칼로리|열량|㎉/i.test(line) && !MEAL_LABEL.test(line);
 
   function cleanItem(raw) {
     let text = String(raw || '').replace(/<[^>]+>/g, ' ').replace(/[*#★☆◆◇●○■□▶▷※@♥♡]/g, '').replace(/\s+/g, ' ').trim();
@@ -141,7 +144,7 @@
 
   function splitMenu(value) {
     const lines = String(value || '').split(/<br\s*\/?>|\r?\n|,|\//i).map(cleanItem).filter(Boolean);
-    return lines.filter(line => /[가-힣a-zA-Z]/.test(line) && line.length <= 30 && !SKIP_LINE.test(line) && !/kcal|칼로리|열량/i.test(line) && !MEAL_LABEL.test(line));
+    return lines.filter(isMenuItem);
   }
 
   function monthContext(sheets, fileName) {
@@ -192,7 +195,7 @@
         current = { meal: { 아침: '조식', 점심: '중식', 저녁: '석식' }[label[1]] || label[1], lines: [], kcal: null };
         return;
       }
-      const kcal = /kcal|칼로리|열량|㎉/i.test(line) ? kcalOf(line) : null;
+      const kcal = /kcal|칼로리|열량|㎉|^에너지/i.test(line) ? kcalOf(line) : null;
       if (kcal) current.kcal = kcal; else current.lines.push(line);
     });
     if (current.lines.length) sections.push(current);
@@ -215,7 +218,9 @@
         const items = splitMenu(cells[menuCol]);
         if (!date || !items.length) continue;
         const mealText = String(cells[mealCol] || '');
-        found.push({ date, meal: /조식|아침/.test(mealText) ? '조식' : /석식|저녁/.test(mealText) ? '석식' : '중식', items, kcal: kcalCol >= 0 ? kcalOf(cells[kcalCol]) : null });
+        // 열량 칸이 없으면 메뉴 칸 안의 "에너지 612kcal" 같은 줄에서 찾는다.
+        const kcalLine = String(cells[menuCol] || '').split(/<br\s*\/?>|\r?\n/i).find(line => /kcal|칼로리|열량|㎉|^\s*에너지/i.test(line));
+        found.push({ date, meal: /조식|아침/.test(mealText) ? '조식' : /석식|저녁/.test(mealText) ? '석식' : '중식', items, kcal: kcalCol >= 0 ? kcalOf(cells[kcalCol]) : kcalOf(kcalLine) });
       }
       if (found.length) return found;
     }
@@ -277,7 +282,8 @@
     [/불고기|제육|갈비|돼지|돈육|소고기|쇠고기|우육|닭|오리|햄|소시지|소세지|떡갈비|장조림|수육|보쌈|스테이크|미트볼|함박|주물럭|족발|삼겹|목살|베이컨/, 'protein', 230, 17, 8, 14],
     [/생선|고등어|삼치|꽁치|연어|갈치|명태|동태|코다리|오징어|낙지|새우|어묵|조기|가자미|참치|쭈꾸미|주꾸미|홍합|조개|굴|임연수|해물/, 'protein', 170, 15, 6, 9],
     [/계란|달걀|에그|두부|메추리알|콩자반|유부/, 'protein', 130, 9, 5, 8],
-    [/김치|깍두기|섞박지|석박지|겉절이|단무지|피클|장아찌|총각|열무|동치미|나박/, 'veg', 20, 1, 4, 0],
+    [/맛살|게살|크래미|스팸|너비아니|닭가슴살|훈제오리/, 'protein', 110, 8, 8, 5],
+    [/김치|깍두기|섞박지|석박지|겉절이|단무지|피클|장아찌|총각|열무|동치미|나박/, 'kimchi', 20, 1, 4, 0],
     [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과/, 'treat', 170, 3, 28, 6],
     [/우유|요구르트|요거트|요플레|치즈|두유/, 'dairy', 120, 6, 10, 6],
     [/과일|사과|배$|귤|오렌지|바나나|포도|수박|멜론|키위|파인애플|딸기|자두|복숭아|토마토|망고|참외|천혜향|한라봉|샤인|블루베리|체리/, 'fruit', 60, 1, 15, 0],
@@ -310,7 +316,8 @@
   const ROLE_NOTES = {
     staple: portion => portion < 1 ? '목표 칼로리에 맞춰 조금 덜' : portion > 1 ? '활동량을 채우려면 조금 더' : '평소 한 그릇',
     protein: portion => portion > 1 ? '단백질 채우기 · 더 받을 수 있으면' : '단백질 반찬은 꼭 챙기기',
-    veg: () => '마음껏 먹어도 좋아요',
+    veg: portion => portion > 1 ? '배를 채우는 저칼로리 반찬 · 넉넉히' : '마음껏 먹어도 좋아요',
+    kimchi: () => '나트륨이 많아 적당히',
     soup: () => '건더기 위주, 국물은 반만',
     fried: portion => portion < 1 ? '기름져서 절반만' : '적당히',
     treat: portion => portion === 0 ? '오늘은 건너뛰기' : portion < 1 ? '절반만' : '가볍게',
@@ -351,8 +358,19 @@
       items.filter(item => item.role === 'treat').forEach(item => { item.portion = 0; });
       fitStaple();
     }
+    // 메뉴가 가벼우면 저칼로리 채소 반찬으로 포만감을 채운다(감량 중엔 밥은 그대로 둔다).
+    if (total('kcal') < target.kcal * 0.85) {
+      items.filter(item => item.role === 'veg').forEach(item => { item.portion = 1.5; });
+      if (!cut) fitStaple();
+    }
+    const tips = [];
+    const proteinGap = Math.round(target.protein - total('protein'));
+    const kcalGap = Math.round(target.kcal - total('kcal'));
+    if (proteinGap >= 10) tips.push(`단백질이 약 ${proteinGap}g 부족해요. 오후 간식으로 우유·계란·두부·닭가슴살을 더해 보세요.`);
+    if (kcalGap > target.kcal * 0.15) tips.push(cut ? `메뉴가 가벼워 목표보다 약 ${kcalGap}kcal 적어요. 감량 중이라면 이대로 괜찮아요.` : `목표보다 약 ${kcalGap}kcal 적어요. 밥을 조금 더 받거나 간식으로 채워 보세요.`);
+    else if (-kcalGap > target.kcal * 0.15) tips.push(`목표보다 약 ${-kcalGap}kcal 많아요. 튀김·후식부터 줄여 보세요.`);
     return {
-      source: 'local', goal, target, meal: entry.meal, menuKcal: entry.kcal || null, createdAt: new Date().toISOString(),
+      source: 'local', goal, target, tips, meal: entry.meal, menuKcal: entry.kcal || null, createdAt: new Date().toISOString(),
       items: items.map(item => ({ name: item.name, role: item.role, portion: item.portion, kcal: item.kcal, protein: item.protein, carbs: item.carbs, fat: item.fat, note: ROLE_NOTES[item.role](item.portion) }))
     };
   }
@@ -382,7 +400,8 @@
     const list = state.lunch?.days?.[date] || [];
     return list.find(item => item.meal === '중식') || list[0] || null;
   };
-  const signature = entry => entry ? `${entry.items.join('|')}#${entry.kcal || ''}` : '';
+  const GUIDE_VERSION = 'v2';
+  const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}` : '';
 
   function displayDate(state) {
     const now = new Date();
@@ -404,7 +423,7 @@
     const saved = state.lunch?.guides?.[date];
     const target = lunchTarget(state);
     const targetChanged = saved && (saved.target?.kcal !== target.kcal || saved.target?.protein !== target.protein) && !saved.edited;
-    if (saved && saved.signature === signature(entry) && !targetChanged) return saved;
+    if (saved && (saved.loggedAt || (saved.signature === signature(entry) && !targetChanged))) return saved;
     const guide = { ...localGuide(entry, state), signature: signature(entry) };
     state.lunch.guides ||= {};
     state.lunch.guides[date] = guide;
@@ -502,6 +521,7 @@
       <div class="lunch-head"><div><span class="lunch-eyebrow">🍱 ${label} · ${date === today ? prettyDate(date) : '미리 보기'}</span><strong>${esc(headline(guide))}</strong></div><i class="badge ${guide.source === 'ai' ? 'up' : ''}">${busy ? 'AI 계산 중…' : guide.source === 'ai' ? 'AI 추천' : guide.edited ? '직접 조절' : '기본 추정'}</i></div>
       <p class="lunch-target">점심 목표 약 ${guide.target.kcal.toLocaleString()}kcal · 단백질 ${guide.target.protein}g <em>${esc(guide.goal)}</em></p>
       <ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
+      ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>💡 ${esc(tip)}</li>`).join('')}</ul>` : ''}
       <div class="lunch-total"><div><span>이대로 먹으면</span><b>약 ${kcal.toLocaleString()}kcal · 단백질 ${protein}g</b></div><div class="lunch-bar"><i style="width:${Math.min(100, ratio)}%" class="${ratio > 110 ? 'over' : ''}"></i></div></div>
       <div class="lunch-actions">${date === today ? (guide.loggedAt ? '<button type="button" class="ghost" disabled>점심 기록됨 ✓</button>' : '<button type="button" class="primary mint" data-lunch-log>이대로 먹었어요</button>') : ''}${ai?.enabled() ? `<button type="button" class="ghost" data-lunch-ai ${busy ? 'disabled' : ''}>${guide.source === 'ai' ? 'AI로 다시 계산' : 'AI로 정확하게'}</button>` : ''}<button type="button" class="link" data-go="meals">급식표</button></div>
       <small class="lunch-note">${guide.menuKcal ? `급식표 표기 ${guide.menuKcal}kcal 기준 · ` : ''}급식 1인분 기준 추정치예요. 실제 배식량에 따라 달라요.</small>`;
@@ -561,15 +581,31 @@
     }
   }
 
+  function cleanSavedMenus() {
+    const state = readState();
+    let changed = false;
+    Object.entries(state.lunch?.days || {}).forEach(([date, list]) => {
+      const kept = list.map(entry => {
+        const items = entry.items.filter(isMenuItem);
+        if (items.length !== entry.items.length) changed = true;
+        return { ...entry, items };
+      }).filter(entry => entry.items.length);
+      if (kept.length) state.lunch.days[date] = kept; else { delete state.lunch.days[date]; changed = true; }
+    });
+    if (changed) writeState(state);
+  }
+
   function install() {
     if (document.body.dataset.lunchInstalled) return;
     document.body.dataset.lunchInstalled = 'true';
+    cleanSavedMenus();
     const style = document.createElement('style');
     style.textContent = `
       .lunch-card{margin-top:9px;padding:14px;background:linear-gradient(150deg,#fffaf0,#fff 60%)}.lunch-head{display:flex;justify-content:space-between;align-items:start;gap:8px}.lunch-head strong{display:block;margin-top:3px;font-size:16px;line-height:1.35}.lunch-head small{display:block;margin-top:4px;color:var(--sub);font-size:12px;line-height:1.5}.lunch-eyebrow{color:#b0701e;font-size:11px;font-weight:900}
       .lunch-target{margin:8px 0 4px;color:var(--sub);font-size:12px}.lunch-target em{margin-left:4px;padding:2px 7px;border-radius:99px;background:#f1f6f4;font-style:normal;font-weight:800}
       .lunch-items{margin:6px 0 0;padding:0;list-style:none}.lunch-items li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px dashed #ece3d2}.lunch-items li.skip b{color:#a3b3ad;text-decoration:line-through}.lunch-items b{display:block;font-size:14px}.lunch-items small{display:block;margin-top:2px;color:#8b6a3e;font-size:11px}
       .lunch-portion{display:flex;align-items:center;gap:4px;flex:none}.lunch-portion span{min-width:58px;text-align:center;font-size:13px;font-weight:900}.lunch-portion button{width:30px;height:30px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:16px;font-weight:900}
+      .lunch-tips{margin:8px 0 0;padding:9px 11px;border-radius:12px;background:#fff7e6;list-style:none;font-size:12px;line-height:1.55;color:#7a5a2a}.lunch-tips li+li{margin-top:4px}
       .lunch-total{margin-top:8px;padding:10px 12px;border-radius:13px;background:#f7faf8}.lunch-total span{display:block;color:var(--sub);font-size:11px}.lunch-total b{font-size:14px}.lunch-bar{height:7px;margin-top:6px;border-radius:99px;background:#e6efeb;overflow:hidden}.lunch-bar i{display:block;height:100%;border-radius:inherit;background:var(--mint)}.lunch-bar i.over{background:#ff9e82}
       .lunch-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}.lunch-actions .primary{min-height:42px}.lunch-actions .ghost{min-height:42px}.lunch-note{display:block;margin-top:8px;color:var(--sub);font-size:11px}
       .lunch-manager{margin:10px 0;padding:14px}.lunch-status{margin:10px 0 6px;font-size:13px;font-weight:800}.lunch-preview{margin:0 0 10px;padding:0;list-style:none}.lunch-preview li{padding:7px 0;border-top:1px dashed var(--line);font-size:12px;line-height:1.5}.lunch-preview b{margin-right:6px}.lunch-preview span{color:var(--sub)}
