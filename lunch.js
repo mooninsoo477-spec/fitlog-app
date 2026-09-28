@@ -128,7 +128,7 @@
   const MEAL_LABEL = /^\[?\s*(조식|중식|석식|아침|점심|저녁)\s*\]?$/;
   // 메뉴가 아닌 안내 문구. 영양소 이름은 NUTRIENT_LINE이 줄 시작에서 판별한다("영양밥", "저지방우유"는 메뉴로 남긴다).
   const SKIP_LINE = /원산지|알레르기|알러지|영양\s*(정보|성분|소|표|사)|식단표|급식표|학교|^메뉴$|^식단$|^요일$|^[월화수목금토일]$|^[월화수목금토일]요일$/;
-  const HOLIDAY = /휴업|방학|재량|공휴|휴일|급식\s*없음|미실시|^없음$/;
+  const HOLIDAY = /휴업|방학|재량|공휴|휴일|급식\s*없음|미실시|^없음$|추석|설날|연휴|개교기념/;
   // 급식표 아래에 붙는 영양 정보 줄(에너지 612kcal, 철 3.2mg 등)을 메뉴로 읽지 않는다.
   const NUTRIENT_LINE = /^(에너지|열량|탄수화물|단백질|지방|칼슘|철분?|비타민\s*[A-Za-z0-9]*|리보플라빈|티아민|나트륨|식이섬유|콜레스테롤|당류|포화지방|레티놀|아연|칼륨|엽산)(?=$|\s|[(:：\d])|\d\s*(mg|㎎|μg|ug|RE)(?![가-힣])/i;
   const NUTRIENT_EN = /^(energy|protein|fat|carbohydrates?|calcium|iron|sodium|vitamin\s*[a-z0-9]*|riboflavin|thiamin|fiber|ca|fe|na)(?=$|\s|[(:\d])/i;
@@ -161,19 +161,63 @@
   const NOTE_LINE = /^\s*[*※☞▶►◎]|^\s*[[(]?\s*(에너지|열량|영양\s*(정보|성분|소|표)|원산지|알레르기|알러지)/;
   const nutrientList = line => line.split(/[,/·]/).filter(part => NUTRIENT_LINE.test(normalizeText(part).replace(/\s+/g, ''))).length >= 2;
 
-  function splitMenu(value) {
-    const lines = normalizeText(value).split(/<br\s*\/?>|\r?\n/i).map(line => line.trim()).filter(Boolean);
+  // 알레르기 번호 묶음 "(5.6.10.13)". 이 뒤는 다음 메뉴가 시작되는 자리로 본다.
+  const ALLERGY_GROUP = /\(\s*\d{1,2}(?:\s*[.,]\s*\d{1,2})*\s*\.?\s*\)/g;
+
+  // 괄호 밖의 쉼표·빗금에서만 나눈다. "모듬전(한돈육전,참나물전)"은 한 메뉴로 둔다.
+  function splitOutsideParens(text) {
     const parts = [];
-    for (let index = 0; index < lines.length; index++) {
-      if (NOTE_LINE.test(lines[index]) || nutrientList(lines[index])) {
-        // 안내 줄이 칸 너비 때문에 다음 줄로 넘어간 경우("…칼슘/" ↵ "철")도 함께 버린다.
-        while (/[,/]\s*$/.test(lines[index]) && index + 1 < lines.length) index++;
-        continue;
-      }
-      parts.push(...lines[index].split(/[,/]/));
+    let depth = 0;
+    let buffer = '';
+    for (const char of text) {
+      if (char === '(') depth++;
+      if (char === ')') depth = Math.max(0, depth - 1);
+      if ((char === ',' || char === '/') && depth === 0) { parts.push(buffer); buffer = ''; } else buffer += char;
     }
-    return parts.map(cleanItem).filter(Boolean).filter(isMenuItem);
+    parts.push(buffer);
+    return parts;
   }
+
+  const balanceParens = text => (text.match(/\(/g) || []).length > (text.match(/\)/g) || []).length ? `${text})` : text;
+
+  // 메뉴 칸 하나를 읽어 메뉴 목록과(있으면) 열량·단백질을 돌려준다.
+  // 예) "부대찌개(2.5.6)     간장돈육불고기(5.6.10)" → 두 메뉴,  "* 에너지/단백질/칼슘/철" ↵ "549.92/32.20/…" → 549kcal·단백질 32g
+  function readMenuCell(value) {
+    const result = { items: [], kcal: null, protein: null };
+    let headers = null;
+    normalizeText(value).split(/<br\s*\/?>|\r?\n/i).forEach(line => {
+      const segments = line.replace(ALLERGY_GROUP, '$&\n').split(/\n|\s{2,}/).map(segment => segment.trim()).filter(Boolean);
+      segments.forEach(segment => {
+        if (NOTE_LINE.test(segment) || nutrientList(segment)) {
+          headers = segment.replace(/^[^가-힣A-Za-z]+/, '').split(/[/,·]/).map(part => part.trim()).filter(Boolean);
+          return;
+        }
+        if (headers && NUTRIENT_LINE.test(segment.replace(/\s+/g, ''))) { headers.push(...segment.split(/[/,·]/).map(part => part.trim()).filter(Boolean)); return; }
+        if (/^[\d.\s/,]+$/.test(segment)) {
+          if (headers) {
+            const numbers = segment.split(/[/,]/).map(part => +part.trim());
+            const valueOf = pattern => { const index = headers.findIndex(name => pattern.test(name)); return index >= 0 ? numbers[index] : NaN; };
+            const kcal = valueOf(/에너지|열량|kcal/i);
+            const protein = valueOf(/단백질/);
+            if (kcal >= 150 && kcal <= 2500) result.kcal = Math.round(kcal);
+            if (protein > 0 && protein < 200) result.protein = Math.round(protein * 10) / 10;
+            headers = null;
+          }
+          return;
+        }
+        const energy = segment.match(/^(?:에너지|열량)\s*[:：]?\s*(\d{3,4}(?:\.\d+)?)/);
+        if (energy) { result.kcal = Math.round(+energy[1]); return; }
+        if (/kcal|㎉/i.test(segment)) { const kcal = kcalOf(segment); if (kcal) result.kcal = kcal; return; }
+        splitOutsideParens(segment).forEach(part => {
+          const item = balanceParens(cleanItem(part));
+          if (item && isMenuItem(item)) result.items.push(item);
+        });
+      });
+    });
+    return result;
+  }
+
+  const splitMenu = value => readMenuCell(value).items;
 
   function monthContext(sheets, fileName) {
     const haystack = [fileName, ...sheets.map(sheet => sheet.name), ...sheets.flatMap(sheet => sheet.rows.slice(0, 8).flat())].filter(Boolean).join(' ');
@@ -210,7 +254,7 @@
   }
 
   // 달력 칸의 첫 줄처럼 "날짜만" 적힌 줄인지 확인한다. 엑셀 날짜 숫자(예: 46266)도 날짜로 본다.
-  const DAY_ONLY = /^(?:(\d{1,2})\s*[/.월]\s*)?(\d{1,2})\s*일?\s*(?:\(?[월화수목금토일](?:요일)?\)?)?$/;
+  const DAY_ONLY = /^(?:(\d{1,2})\s*[/.월]\s*)?(\d{1,2})\s*일?\s*(?:\([^)]*\)?|[월화수목금토일](?:요일)?)?$/;
   const isDateLine = line => DAY_ONLY.test(line) || (/^\d{5}(\.\d+)?$/.test(line) && +line > 40000 && +line < 60000) || /^20\d{2}\s*[-./년]\s*\d{1,2}\s*[-./월]\s*\d{1,2}\s*일?\s*(\(?[월화수목금토일]\)?)?$/.test(line);
 
   function sectionsOf(lines) {
@@ -223,11 +267,14 @@
         current = { meal: { 아침: '조식', 점심: '중식', 저녁: '석식' }[label[1]] || label[1], lines: [], kcal: null };
         return;
       }
-      const kcal = /kcal|칼로리|열량|㎉|^에너지/i.test(line) ? kcalOf(line) : null;
+      const kcal = /kcal|칼로리|㎉/i.test(line) && !NOTE_LINE.test(line) ? kcalOf(line) : null;
       if (kcal) current.kcal = kcal; else current.lines.push(line);
     });
     if (current.lines.length) sections.push(current);
-    return sections.map(section => ({ meal: section.meal, kcal: section.kcal, items: splitMenu(section.lines.join('\n')) })).filter(section => section.items.length);
+    return sections.map(section => {
+      const info = readMenuCell(section.lines.join('\n'));
+      return { meal: section.meal, kcal: section.kcal || info.kcal, protein: info.protein, items: info.items };
+    }).filter(section => section.items.length);
   }
 
   function fromTable(rows, context) {
@@ -246,12 +293,10 @@
         const parsedDate = parseDate(cells[dateCol], context);
         if (parsedDate) lastDate = parsedDate;
         const date = parsedDate || (String(cells[dateCol] ?? '').trim() ? null : lastDate);
-        const items = splitMenu(cells[menuCol]);
-        if (!date || !items.length) continue;
+        const info = readMenuCell(cells[menuCol]);
+        if (!date || !info.items.length) continue;
         const mealText = String(cells[mealCol] || '');
-        // 열량 칸이 없으면 메뉴 칸 안의 "에너지 612kcal" 같은 줄에서 찾는다.
-        const kcalLine = String(cells[menuCol] || '').split(/<br\s*\/?>|\r?\n/i).find(line => /kcal|칼로리|열량|㎉|^\s*에너지/i.test(line));
-        found.push({ date, meal: /조식|아침/.test(mealText) ? '조식' : /석식|저녁/.test(mealText) ? '석식' : '중식', items, kcal: kcalCol >= 0 ? kcalOf(cells[kcalCol]) : kcalOf(kcalLine) });
+        found.push({ date, meal: /조식|아침/.test(mealText) ? '조식' : /석식|저녁/.test(mealText) ? '석식' : '중식', items: info.items, kcal: (kcalCol >= 0 ? kcalOf(cells[kcalCol]) : null) || info.kcal, protein: info.protein });
       }
       if (found.length) return found;
     }
@@ -264,7 +309,7 @@
     rows.forEach((row, rowIndex) => (row || []).forEach((value, colIndex) => {
       const lines = lineList(value);
       if (!lines.length || !isDateLine(lines[0])) return;
-      const date = parseDate(lines[0].replace(/\(.*\)/, ''), context);
+      const date = parseDate(lines[0].replace(/\(.*$/, ''), context);
       if (!date) return;
       let menuLines = lines.slice(1);
       if (!menuLines.length) {
@@ -295,7 +340,7 @@
       const list = days[entry.date] ||= [];
       const same = list.find(item => item.meal === entry.meal);
       if (same) same.items = [...new Set([...same.items, ...entry.items])];
-      else list.push({ meal: entry.meal, items: entry.items, kcal: entry.kcal || null });
+      else list.push({ meal: entry.meal, items: entry.items, kcal: entry.kcal || null, protein: entry.protein || null });
     });
     return days;
   }
@@ -305,24 +350,25 @@
   // ---------------------------------------------------------------
   // [패턴, 역할, kcal, 단백질, 탄수, 지방] — 위에서부터 먼저 맞는 규칙을 쓴다.
   const FOOD_RULES = [
+    [/(수제비|어묵|유부|만두|떡)국$/, 'soup', 150, 6, 18, 5],
     [/떡국|만둣국|만두국|칼국수|수제비|라면|우동|짬뽕|짜장|국수|냉면|쫄면|파스타|스파게티|볶음면|비빔면|쌀국수|잔치국수/, 'staple', 480, 15, 78, 11],
-    [/볶음밥|비빔밥|덮밥|주먹밥|김밥|오므라이스|라이스|필라프|리조또|유부초밥|초밥|컵밥|국밥|카레밥/, 'staple', 560, 16, 88, 14],
-    [/밥$|쌀밥|잡곡밥|현미밥|흑미밥|보리밥|기장밥|찰밥|콩밥|영양밥|수수밥/, 'staple', 300, 6, 66, 1],
+    [/볶음밥|비빔밥|덮밥|주먹밥|김밥|오므라이스|라이스|필라프|리조또|유부초밥|초밥|컵밥|국밥|카레밥|치밥|곤드레|콩나물밥|무밥|버섯밥|굴밥|김치밥/, 'staple', 560, 16, 88, 14],
+    [/밥($|&|\s|\()|쌀밥|잡곡밥|현미밥|흑미밥|보리밥|기장밥|찰밥|콩밥|영양밥|수수밥/, 'staple', 300, 6, 66, 1],
     [/죽$/, 'staple', 250, 7, 45, 4],
     [/떡볶이|떡꼬치|라볶이/, 'staple', 350, 7, 70, 5],
     [/빵|토스트|버거|샌드위치|피자|베이글|또띠아|팬케이크|핫케이크/, 'staple', 300, 9, 42, 10],
     [/부대찌개|감자탕|순대국|뼈해장국|해장국|육개장|닭개장|곰탕|갈비탕|설렁탕|짜글이|돼지국밥/, 'soup', 300, 16, 18, 17],
     [/국$|탕$|찌개|전골|스프$|수프$|냉국|개장/, 'soup', 120, 7, 8, 6],
     [/멸치|진미채|오징어채|김자반|김구이|^김$|파래/, 'side', 70, 5, 6, 3],
-    [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|부침|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
-    [/불고기|제육|갈비|돼지|돈육|소고기|쇠고기|우육|닭|오리|햄|소시지|소세지|떡갈비|장조림|수육|보쌈|스테이크|미트볼|함박|주물럭|족발|삼겹|목살|베이컨/, 'protein', 230, 17, 8, 14],
+    [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|전\(|부침|타코야끼|핫바|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
+    [/불고기|제육|갈비|돼지|돈육|소고기|쇠고기|우육|닭|오리|햄|소시지|소세지|떡갈비|장조림|수육|보쌈|스테이크|미트볼|함박|주물럭|족발|삼겹|목살|베이컨|구이|바베큐|바비큐|편육|동파육/, 'protein', 230, 17, 8, 14],
     [/생선|고등어|삼치|꽁치|연어|갈치|명태|동태|코다리|오징어|낙지|새우|어묵|조기|가자미|참치|쭈꾸미|주꾸미|홍합|조개|굴|임연수|해물/, 'protein', 170, 15, 6, 9],
     [/계란|달걀|에그|두부|메추리알|콩자반|유부/, 'protein', 130, 9, 5, 8],
     [/맛살|게살|크래미|스팸|너비아니|닭가슴살|훈제오리/, 'protein', 110, 8, 8, 5],
     [/김치|깍두기|섞박지|석박지|겉절이|단무지|피클|장아찌|총각|열무|동치미|나박/, 'kimchi', 20, 1, 4, 0],
-    [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과/, 'treat', 170, 3, 28, 6],
+    [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과|유과|한과|라떼|요거트볼/, 'treat', 170, 3, 28, 6],
     [/우유|요구르트|요거트|요플레|치즈|두유/, 'dairy', 120, 6, 10, 6],
-    [/과일|사과|배$|귤|오렌지|바나나|포도|수박|멜론|키위|파인애플|딸기|자두|복숭아|토마토|망고|참외|천혜향|한라봉|샤인|블루베리|체리/, 'fruit', 60, 1, 15, 0],
+    [/과일|사과|배$|귤|오렌지|바나나|포도|수박|멜론|키위|파인애플|딸기|자두|복숭아|토마토|망고|참외|천혜향|한라봉|샤인|블루베리|체리|메론|머스캣|자몽|석류/, 'fruit', 60, 1, 15, 0],
     [/잡채|감자|고구마|옥수수|단호박|떡$|당면|묵$/, 'carbside', 150, 3, 26, 4],
     [/나물|무침|샐러드|쌈|숙주|시금치|브로콜리|양배추|오이|버섯|채소|야채|볶음|찜$|조림|콩나물|미역|다시마|가지|호박|생채|양상추|파프리카/, 'veg', 60, 2, 7, 3],
     [/소스|양념|쌈장|초장|고추장|케첩|드레싱|간장|와사비|머스타드|마요/, 'condiment', 25, 0, 4, 1]
@@ -374,6 +420,11 @@
     if (entry.kcal > 300 && baseSum > 0) {
       const scale = Math.min(1.6, Math.max(0.6, entry.kcal / baseSum));
       items = items.map(item => ({ ...item, kcal: Math.round(item.kcal * scale) }));
+    }
+    const proteinSum = items.reduce((sum, item) => sum + item.protein, 0);
+    if (entry.protein > 5 && proteinSum > 0) {
+      const scale = Math.min(2, Math.max(0.5, entry.protein / proteinSum));
+      items = items.map(item => ({ ...item, protein: Math.round(item.protein * scale * 10) / 10 }));
     }
     items.forEach(item => { item.portion = { treat: cut ? 0.5 : 1, fried: cut ? 0.5 : 1, carbside: cut ? 0.5 : 1 }[item.role] ?? 1; });
     const staples = items.filter(item => item.role === 'staple');
@@ -444,8 +495,8 @@
     const list = state.lunch?.days?.[date] || [];
     return list.find(item => item.meal === '중식') || list[0] || null;
   };
-  const GUIDE_VERSION = 'v4';
-  const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}` : '';
+  const GUIDE_VERSION = 'v5';
+  const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}#${entry.protein || ''}` : '';
 
   function displayDate(state) {
     const now = new Date();
