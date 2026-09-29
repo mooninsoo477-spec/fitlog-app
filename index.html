@@ -17,10 +17,12 @@
 <div class="app" id="app">
 <main class="view active" data-view="home"><div class="content">
 <header class="top"><div><p class="eyebrow" id="date"></p><h1 id="greeting">안녕하세요!</h1></div><button class="circle" data-go="more" aria-label="내 정보">☺</button></header>
+
 <section class="welcome"><small>오늘의 한마디</small><h2 id="quote"></h2><p>천천히, 오늘 할 만큼만 해봐요!</p><img src="mascot/default.png" alt="아령을 든 새싹 마스코트"></section>
 <section class="card checkin" id="checkin"></section>
-<section class="hero" id="planHero"></section>
 <div class="section-head"><h2>오늘의 영양</h2><button class="link" data-go="meals">식단 기록</button></div><section class="card nutrition" data-go="meals"><div class="cal-line"><div><strong><span id="kcal">0</span> kcal</strong><span> / <span data-kcal-target>2,200</span></span></div><span id="kcalMsg"></span></div><div class="track"><i id="kcalFill"></i></div><div class="macros" id="macros"></div></section>
+<section class="hero" id="planHero"></section>
+
 <div class="section-head"><h2>오늘 먹은 것</h2><button class="link" data-go="meals">수정하기</button></div><section class="card" id="mealPreview"></section>
 <button class="recommend" id="recommend"><span class="icon">🍲</span><span><strong>남은 끼니 가이드</strong><span id="recommendText"></span></span><b>›</b></button>
 <div class="section-head"><h2>이번 주 운동</h2><button class="link" data-go="workout">기록 보관함</button></div><section class="card week"><div class="week-grid" id="week"></div></section>
@@ -39,6 +41,6 @@
 window.FITLOG_STATS_CODE = '';
 </script>
 <script src="app.js?v=1.1.0"></script>
-<script src="lunch.js?v=1.1.4"></script>
+<script src="lunch.js?v=1.3.0"></script>
 <script>if('serviceWorker'in navigator&&location.protocol!=='file:')addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
 </body></html>

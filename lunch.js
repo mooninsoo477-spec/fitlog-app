@@ -350,26 +350,32 @@
   // ---------------------------------------------------------------
   // [패턴, 역할, kcal, 단백질, 탄수, 지방] — 위에서부터 먼저 맞는 규칙을 쓴다.
   const FOOD_RULES = [
+    // 급식에서는 밥이 따로 나오므로 국밥·곰탕류는 진한 국물 요리로 본다.
+    [/국밥|부대찌개|감자탕|순대국|뼈해장국|해장국|육개장|닭개장|곰탕|갈비탕|설렁탕|짜글이/, 'soup', 300, 16, 18, 17],
+    // "피자갈떡"(피자맛 떡갈비)처럼 이름에 피자·떡이 들어간 고기 반찬
+    [/떡갈비|갈떡|함박|너비아니/, 'protein', 230, 15, 12, 13],
     [/(수제비|어묵|유부|만두|떡)국$/, 'soup', 150, 6, 18, 5],
     [/떡국|만둣국|만두국|칼국수|수제비|라면|우동|짬뽕|짜장|국수|냉면|쫄면|파스타|스파게티|볶음면|비빔면|쌀국수|잔치국수/, 'staple', 480, 15, 78, 11],
-    [/볶음밥|비빔밥|덮밥|주먹밥|김밥|오므라이스|라이스|필라프|리조또|유부초밥|초밥|컵밥|국밥|카레밥|치밥|곤드레|콩나물밥|무밥|버섯밥|굴밥|김치밥/, 'staple', 560, 16, 88, 14],
+    [/볶음밥|비빔밥|덮밥|주먹밥|김밥|오므라이스|라이스|필라프|리조또|유부초밥|초밥|컵밥|카레밥|치밥|곤드레|콩나물밥|무밥|버섯밥|굴밥|김치밥/, 'staple', 560, 16, 88, 14],
     [/밥($|&|\s|\()|쌀밥|잡곡밥|현미밥|흑미밥|보리밥|기장밥|찰밥|콩밥|영양밥|수수밥/, 'staple', 300, 6, 66, 1],
     [/죽$/, 'staple', 250, 7, 45, 4],
     [/떡볶이|떡꼬치|라볶이/, 'staple', 350, 7, 70, 5],
     [/빵|토스트|버거|샌드위치|피자|베이글|또띠아|팬케이크|핫케이크/, 'staple', 300, 9, 42, 10],
     [/부대찌개|감자탕|순대국|뼈해장국|해장국|육개장|닭개장|곰탕|갈비탕|설렁탕|짜글이|돼지국밥/, 'soup', 300, 16, 18, 17],
     [/국$|탕$|찌개|전골|스프$|수프$|냉국|개장/, 'soup', 120, 7, 8, 6],
+    // "보쌈김치"처럼 고기 이름이 들어가도 김치류로 끝나면 김치로 본다.
+    [/김치$|깍두기$|겉절이$|석박지$|섞박지$/, 'kimchi', 20, 1, 4, 0],
     [/멸치|진미채|오징어채|김자반|김구이|^김$|파래/, 'side', 70, 5, 6, 3],
-    [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|전\(|부침|타코야끼|핫바|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
+    [/튀김|까스|가스|커틀릿|강정|탕수|치킨|너겟|전$|전\(|부침|타코야끼|핫바|회오리감자|감자튀김|웨지감자|동그랑땡|핫도그|꿔바로우|깐풍|유린기|고로케|크로켓/, 'fried', 290, 12, 22, 17],
     [/불고기|제육|갈비|돼지|돈육|소고기|쇠고기|우육|닭|오리|햄|소시지|소세지|떡갈비|장조림|수육|보쌈|스테이크|미트볼|함박|주물럭|족발|삼겹|목살|베이컨|구이|바베큐|바비큐|편육|동파육/, 'protein', 230, 17, 8, 14],
     [/생선|고등어|삼치|꽁치|연어|갈치|명태|동태|코다리|오징어|낙지|새우|어묵|조기|가자미|참치|쭈꾸미|주꾸미|홍합|조개|굴|임연수|해물/, 'protein', 170, 15, 6, 9],
     [/계란|달걀|에그|두부|메추리알|콩자반|유부/, 'protein', 130, 9, 5, 8],
-    [/맛살|게살|크래미|스팸|너비아니|닭가슴살|훈제오리/, 'protein', 110, 8, 8, 5],
+    [/맛살|게살|크래미|스팸|닭가슴살|훈제오리|골뱅이/, 'protein', 110, 8, 8, 5],
     [/김치|깍두기|섞박지|석박지|겉절이|단무지|피클|장아찌|총각|열무|동치미|나박/, 'kimchi', 20, 1, 4, 0],
-    [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과|유과|한과|라떼|요거트볼/, 'treat', 170, 3, 28, 6],
+    [/케이크|케익|쿠키|머핀|와플|도넛|도너츠|아이스|젤리|푸딩|주스|쥬스|음료|에이드|스무디|초코|과자|약과|티라미수|마카롱|츄러스|꿀떡|파이$|타르트|빙수|슈크림|카스텔라|브라우니|시리얼|식혜|수정과|유과|한과|라떼|요거트볼/, 'treat', 170, 3, 28, 6],
     [/우유|요구르트|요거트|요플레|치즈|두유/, 'dairy', 120, 6, 10, 6],
     [/과일|사과|배$|귤|오렌지|바나나|포도|수박|멜론|키위|파인애플|딸기|자두|복숭아|토마토|망고|참외|천혜향|한라봉|샤인|블루베리|체리|메론|머스캣|자몽|석류/, 'fruit', 60, 1, 15, 0],
-    [/잡채|감자|고구마|옥수수|단호박|떡$|당면|묵$/, 'carbside', 150, 3, 26, 4],
+    [/잡채|감자|고구마(?!줄기)|옥수수|단호박|떡$|당면|묵$/, 'carbside', 150, 3, 26, 4],
     [/나물|무침|샐러드|쌈|숙주|시금치|브로콜리|양배추|오이|버섯|채소|야채|볶음|찜$|조림|콩나물|미역|다시마|가지|호박|생채|양상추|파프리카/, 'veg', 60, 2, 7, 3],
     [/소스|양념|쌈장|초장|고추장|케첩|드레싱|간장|와사비|머스타드|마요/, 'condiment', 25, 0, 4, 1]
   ];
@@ -495,14 +501,15 @@
     const list = state.lunch?.days?.[date] || [];
     return list.find(item => item.meal === '중식') || list[0] || null;
   };
-  const GUIDE_VERSION = 'v5';
+  const GUIDE_VERSION = 'v6';
   const signature = entry => entry ? `${GUIDE_VERSION}|${entry.items.join('|')}#${entry.kcal || ''}#${entry.protein || ''}` : '';
 
   function displayDate(state) {
     const now = new Date();
     const today = dateKey(now);
-    if (now.getHours() < 15 && lunchEntry(state, today)) return today;
-    // 점심이 지났거나 오늘 급식이 없으면(주말 등) 가장 가까운 다음 급식일을 미리 보여준다.
+    // 급식이 있는 날은 점심이 지나도 자정까지 그날 급식을 그대로 보여준다.
+    if (lunchEntry(state, today)) return today;
+    // 오늘 급식이 없으면(주말·휴일) 가장 가까운 다음 급식일을 미리 보여준다.
     for (let offset = 1; offset <= 4; offset++) {
       const date = new Date(now);
       date.setDate(now.getDate() + offset);
@@ -574,55 +581,189 @@
     return parts.join(', ') || '골고루 적당히';
   }
 
+  let lunchExpanded = false;
+
+  // 급식 카드는 하루 칼로리(오늘의 영양) 카드 바로 아래에 둔다.
+  function placeCard(card) {
+    const anchor = $('[data-view="home"] .card.nutrition') || $('#checkin') || $('.welcome');
+    if (anchor && anchor.nextElementSibling !== card) anchor.insertAdjacentElement('afterend', card);
+  }
+
   function renderHomeCard() {
     const home = $('[data-view="home"] .content');
     if (!home) return;
     let card = $('#lunchGuide');
     const state = readState();
     const hasMenu = Object.keys(state.lunch?.days || {}).length > 0;
-    // 급식표를 아직 안 올렸으면 홈에서 바로 찾을 수 있게 안내 카드를 보여준다. "안 먹어요"로 닫으면 다시 안 뜬다.
+    if (!card && (hasMenu || !state.lunchPromptHidden)) {
+      card = document.createElement('section');
+      card.id = 'lunchGuide';
+    }
+    // 급식표를 아직 안 올렸으면 작은 안내만 보여준다. "안 먹어요"로 닫으면 다시 안 뜬다.
     if (!hasMenu) {
       if (state.lunchPromptHidden) { card?.remove(); return; }
-      if (!card) {
-        card = document.createElement('section');
-        card.id = 'lunchGuide';
-        ($('#checkin') || $('.welcome'))?.insertAdjacentElement('afterend', card);
-      }
-      card.className = 'card lunch-card lunch-prompt';
+      placeCard(card);
+      card.className = 'card lunch-card compact lunch-prompt';
       delete card.dataset.date;
-      card.innerHTML = `<div class="lunch-head"><div><span class="lunch-eyebrow">🍱 급식 먹는다면</span><strong>급식표를 올리면 매일 점심 먹을 양을 알려드려요</strong><small>엑셀·CSV 급식표를 올리면 목표 칼로리에 맞춰 밥·반찬 양을 계산해요.</small></div></div>
-        <div class="lunch-actions"><button type="button" class="primary mint" data-go="meals" data-open="lunchManager">급식표 올리기</button><button type="button" class="link" data-lunch-dismiss>급식 안 먹어요</button></div>`;
+      card.innerHTML = `<div class="lunch-row"><div><span class="lunch-eyebrow">🍱 급식 먹는다면</span><strong>급식표를 올리면 점심 먹을 양을 알려드려요</strong></div></div>
+        <div class="lunch-actions"><button type="button" class="primary mint small" data-go="meals" data-open="lunchManager">급식표 올리기</button><button type="button" class="link" data-lunch-dismiss>급식 안 먹어요</button></div>`;
       return;
     }
     const date = displayDate(state);
     if (!date) { card?.remove(); return; }
-    if (!card) {
-      card = document.createElement('section');
-      card.id = 'lunchGuide';
-      card.className = 'card lunch-card';
-      ($('#checkin') || $('.welcome'))?.insertAdjacentElement('afterend', card);
-    }
-    card.className = 'card lunch-card';
+    placeCard(card);
     const guide = ensureGuide(date);
     if (!guide) { card.remove(); return; }
     guide.items = guide.items.filter(item => isMenuItem(item.name));
     const today = dateKey(new Date());
-    const label = date === today ? '오늘 점심 급식' : `${prettyDate(date)} 점심 급식`;
+    const isToday = date === today;
     const kcal = sumOf(guide.items, 'kcal');
     const protein = sumOf(guide.items, 'protein');
     const ratio = Math.min(130, Math.round(kcal / Math.max(1, guide.target.kcal) * 100));
     const busy = aiBusyDate === date;
+    const badge = busy ? 'AI 계산 중…' : guide.source === 'ai' ? 'AI 추천' : guide.edited ? '직접 조절' : '기본 추정';
+    card.className = `card lunch-card compact${lunchExpanded ? ' open' : ''}`;
     card.dataset.date = date;
+    card.dataset.lunchDate = date;
+    const pending = pendingLunchDates(state);
     card.innerHTML = `
-      <div class="lunch-head"><div><span class="lunch-eyebrow">🍱 ${label} · ${date === today ? prettyDate(date) : '미리 보기'}</span><strong>${esc(headline(guide))}</strong></div><i class="badge ${guide.source === 'ai' ? 'up' : ''}">${busy ? 'AI 계산 중…' : guide.source === 'ai' ? 'AI 추천' : guide.edited ? '직접 조절' : '기본 추정'}</i></div>
-      <p class="lunch-target">점심 목표 약 ${guide.target.kcal.toLocaleString()}kcal · 단백질 ${guide.target.protein}g <em>${esc(guide.goal)}</em></p>
-      <ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
-      ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>💡 ${esc(tip)}</li>`).join('')}</ul>` : ''}
-      <div class="lunch-total"><div><span>이대로 먹으면</span><b>약 ${kcal.toLocaleString()}kcal · 단백질 ${protein}g</b></div><div class="lunch-bar"><i style="width:${Math.min(100, ratio)}%" class="${ratio > 110 ? 'over' : ''}"></i></div></div>
-      <div class="lunch-actions">${date === today ? (guide.loggedAt ? '<button type="button" class="ghost" disabled>점심 기록됨 ✓</button>' : '<button type="button" class="primary mint" data-lunch-log>이대로 먹었어요</button>') : ''}${ai?.enabled() ? `<button type="button" class="ghost" data-lunch-ai ${busy ? 'disabled' : ''}>${guide.source === 'ai' ? 'AI로 다시 계산' : 'AI로 정확하게'}</button>` : ''}<button type="button" class="link" data-go="meals">급식표</button></div>
-      <small class="lunch-note">${guide.menuKcal ? `급식표 표기 ${guide.menuKcal}kcal 기준 · ` : ''}급식 1인분 기준 추정치예요. 실제 배식량에 따라 달라요.</small>`;
+      <div class="lunch-row"><div>
+        <span class="lunch-eyebrow">🍱 ${isToday ? '오늘 급식' : `${prettyDate(date)} 급식 미리 보기`} · ${prettyDate(date)} <i class="badge ${guide.source === 'ai' ? 'up' : ''}">${badge}</i></span>
+        <strong>${esc(headline(guide))}</strong>
+        <small>이대로 먹으면 약 ${kcal.toLocaleString()}kcal · 단백질 ${protein}g <span>(점심 목표 ${guide.target.kcal.toLocaleString()}kcal)</span></small>
+      </div></div>
+      ${lunchExpanded ? `
+        <ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
+        ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>💡 ${esc(tip)}</li>`).join('')}</ul>` : ''}
+        <div class="lunch-bar"><i style="width:${Math.min(100, ratio)}%" class="${ratio > 110 ? 'over' : ''}"></i></div>
+        <small class="lunch-note">점심 목표 약 ${guide.target.kcal.toLocaleString()}kcal · 단백질 ${guide.target.protein}g (${esc(guide.goal)}) · ${guide.menuKcal ? `급식표 표기 ${guide.menuKcal}kcal 기준 · ` : ''}급식 1인분 기준 추정치예요.</small>` : ''}
+      <div class="lunch-actions">
+        ${isToday ? (guide.loggedAt ? '<span class="lunch-done">점심 기록됨 ✓</span>' : '<button type="button" class="primary mint small" data-lunch-log>이대로 먹었어요</button>') : ''}
+        <button type="button" class="link" data-lunch-toggle aria-expanded="${lunchExpanded}">${lunchExpanded ? '접기 ▴' : '음식별 양 보기 ▾'}</button>
+        ${lunchExpanded && ai?.enabled() ? `<button type="button" class="link" data-lunch-ai ${busy ? 'disabled' : ''}>${guide.source === 'ai' ? 'AI로 다시 계산' : 'AI로 정확하게'}</button>` : ''}
+        ${lunchExpanded ? '<button type="button" class="link" data-go="meals" data-open="lunchManager">급식표</button>' : ''}
+        ${pending.length ? `<button type="button" class="link warn-link" data-go="meals" data-meal-day="${pending[0]}">지난 급식 ${pending.length}일 미기록 ›</button>` : ''}
+      </div>`;
     // AI가 연결돼 있으면 날짜마다 한 번만 자동으로 더 정확하게 계산한다(직접 조절했거나 이미 기록했으면 건드리지 않음).
     if (ai?.enabled() && guide.source !== 'ai' && !guide.aiTriedAt && !guide.edited && !guide.loggedAt && !busy) setTimeout(() => upgradeWithAi(date), 0);
+  }
+
+  // ---------------------------------------------------------------
+  // 6. 식사 기록 편집: 최근 5일 기록을 고치고, 빠뜨린 급식도 그 날짜로 기록
+  // ---------------------------------------------------------------
+  const MEAL_TYPES = ['아침', '점심', '저녁', '간식'];
+  let mealDate = null;
+  let editingMealId = null;
+  let relogDate = null;
+  const recentDates = () => Array.from({ length: 5 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - index); return dateKey(date); });
+  const mealTotal = (meals, key = 'kcal') => Math.round(meals.reduce((sum, meal) => sum + (+meal[key] || 0), 0));
+  const newId = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+
+  function lunchLogged(state, date) {
+    return Boolean(state.lunch?.guides?.[date]?.loggedAt) || (state.logs?.[date]?.meals || []).some(meal => meal.meal === '점심');
+  }
+
+  // 오늘을 뺀 최근 5일 중 급식이 있었는데 점심 기록이 없는 날
+  function pendingLunchDates(state) {
+    const today = dateKey(new Date());
+    return recentDates().filter(date => date < today && lunchEntry(state, date) && !lunchLogged(state, date));
+  }
+
+  function guideListMarkup(guide) {
+    return `<ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
+      <p class="meal-lunch-total">이대로 먹으면 약 ${sumOf(guide.items, 'kcal').toLocaleString()}kcal · 단백질 ${sumOf(guide.items, 'protein')}g</p>`;
+  }
+
+  function mealEditForm(meal, type) {
+    const value = key => meal ? Math.round((+meal[key] || 0) * 10) / 10 : '';
+    return `<form class="meal-edit" data-meal-form="${esc(meal?.id || 'new')}">
+      <input class="input" name="name" value="${esc(meal?.name || '')}" placeholder="음식 이름" autocomplete="off">
+      <select class="select" name="meal">${MEAL_TYPES.map(item => `<option ${(meal?.meal || type) === item ? 'selected' : ''}>${item}</option>`).join('')}</select>
+      <label><span>kcal</span><input class="input" name="kcal" inputmode="numeric" value="${meal ? Math.round(+meal.kcal || 0) : ''}"></label>
+      <label><span>단백질 g</span><input class="input" name="protein" inputmode="decimal" value="${value('protein')}"></label>
+      <label><span>탄수 g</span><input class="input" name="carbs" inputmode="decimal" value="${value('carbs')}"></label>
+      <label><span>지방 g</span><input class="input" name="fat" inputmode="decimal" value="${value('fat')}"></label>
+      <div class="meal-edit-actions"><button type="submit" class="primary mint small">${meal ? '수정 저장' : '추가'}</button><button type="button" class="link" data-meal-cancel>취소</button></div>
+    </form>`;
+  }
+
+  function defaultMealType() {
+    const hour = new Date().getHours();
+    return hour < 10 ? '아침' : hour < 15 ? '점심' : hour < 21 ? '저녁' : '간식';
+  }
+
+  function renderMealDays() {
+    const photo = $('[data-view="meals"] .photo');
+    if (!photo) return;
+    let card = $('#mealDays');
+    if (!card) {
+      card = document.createElement('section');
+      card.id = 'mealDays';
+      card.className = 'card meal-days';
+      photo.insertAdjacentElement('afterend', card);
+    }
+    const state = readState();
+    const today = dateKey(new Date());
+    const dates = recentDates();
+    if (!dates.includes(mealDate)) mealDate = today;
+    // 예전 기록 중 id가 없는 식사에 id를 붙여 수정·삭제할 수 있게 한다.
+    const log = state.logs?.[mealDate];
+    if (log?.meals?.some(meal => !meal.id)) { log.meals.forEach(meal => { meal.id ||= newId(); }); writeState(state); }
+    const meals = log?.meals || [];
+    const pending = pendingLunchDates(state);
+    const label = date => date === today ? '오늘' : date === dates[1] ? '어제' : prettyDate(date);
+    const chips = dates.map(date => {
+      const list = state.logs?.[date]?.meals || [];
+      return `<button type="button" class="${date === mealDate ? 'on' : ''}" data-meal-day="${date}"><b>${label(date)}</b><small>${list.length ? `${mealTotal(list).toLocaleString()}kcal` : '기록 없음'}</small>${pending.includes(date) ? '<i class="dot" aria-label="급식 미기록"></i>' : ''}</button>`;
+    }).join('');
+    const types = [...MEAL_TYPES, ...new Set(meals.map(meal => meal.meal).filter(type => type && !MEAL_TYPES.includes(type)))];
+    const groups = types.map(type => ({ type, items: meals.filter(meal => (meal.meal || '간식') === type) })).filter(group => group.items.length);
+    const list = groups.length ? groups.map(group => `<div class="meal-day-group"><h4>${esc(group.type)} <span>${mealTotal(group.items).toLocaleString()}kcal</span></h4>${group.items.map(meal => editingMealId === meal.id ? mealEditForm(meal) : `<div class="meal-day-item"><div><b>${esc(meal.name)}</b><small>${[meal.amount, `${Math.round(+meal.kcal || 0)}kcal`, +meal.protein ? `단백질 ${Math.round(+meal.protein)}g` : ''].filter(Boolean).map(esc).join(' · ')}</small></div><button type="button" class="link" data-meal-edit="${esc(meal.id)}">수정</button><button type="button" class="link danger" data-meal-del="${esc(meal.id)}">삭제</button></div>`).join('')}</div>`).join('') : `<p class="meal-day-empty">${label(mealDate)} 식사 기록이 아직 없어요.</p>`;
+    let lunchBlock = '';
+    const entry = lunchEntry(state, mealDate);
+    if (entry && mealDate <= today) {
+      const guide = ensureGuide(mealDate);
+      const logged = lunchLogged(state, mealDate);
+      const showGuide = guide && (!logged || relogDate === mealDate);
+      lunchBlock = `<div class="meal-lunch" data-lunch-date="${mealDate}">
+        <div class="meal-lunch-head"><b>🏫 ${label(mealDate)} 급식</b>${logged ? '<span class="lunch-done">점심 기록됨 ✓</span>' : '<i class="badge down">미기록</i>'}</div>
+        ${showGuide ? `${guideListMarkup(guide)}<div class="lunch-actions"><button type="button" class="primary mint small" data-lunch-log ${logged ? 'data-relog="1"' : ''}>${logged ? '이 양으로 다시 기록' : `${label(mealDate)} 점심으로 기록`}</button>${logged ? '<button type="button" class="link" data-lunch-relog-cancel>취소</button>' : ''}</div>${logged ? '<small class="lunch-note">다시 기록하면 이 날 급식으로 기록한 점심이 새 양으로 바뀌어요.</small>' : ''}`
+          : `<p class="meal-lunch-menu">${esc(entry.items.join(' · '))}</p><button type="button" class="link" data-lunch-relog>급식 양 고쳐서 다시 기록</button>`}
+      </div>`;
+    }
+    card.innerHTML = `
+      <div class="meal-days-head"><strong>🍽️ 식사 기록</strong><small>최근 5일 기록을 고치거나, 빠뜨린 식사를 그 날짜로 추가할 수 있어요.</small></div>
+      <div class="meal-day-chips">${chips}</div>
+      <p class="meal-day-summary">${label(mealDate)} 합계 <b>${mealTotal(meals).toLocaleString()}kcal</b> · 단백질 ${mealTotal(meals, 'protein')}g</p>
+      ${lunchBlock}
+      ${list}
+      ${editingMealId === 'new' ? mealEditForm(null, defaultMealType()) : `<button type="button" class="ghost full meal-add" data-meal-new>＋ ${label(mealDate)} 식사 직접 추가</button>`}`;
+  }
+
+  function saveMealForm(form) {
+    const data = new FormData(form);
+    const name = String(data.get('name') || '').trim();
+    if (!name) { showToast('음식 이름을 적어주세요.'); return; }
+    const values = { name, meal: String(data.get('meal') || '간식'), kcal: Math.max(0, Math.round(+data.get('kcal') || 0)), protein: Math.max(0, +data.get('protein') || 0), carbs: Math.max(0, +data.get('carbs') || 0), fat: Math.max(0, +data.get('fat') || 0) };
+    const state = readState();
+    state.logs ||= {};
+    state.logs[mealDate] ||= { meals: [], workouts: [] };
+    const meals = state.logs[mealDate].meals ||= [];
+    const id = form.dataset.mealForm;
+    if (id === 'new') meals.push({ id: newId(), ...values, src: 'manual' });
+    else {
+      const meal = meals.find(item => item.id === id);
+      if (!meal) return;
+      Object.assign(meal, values);
+      // AI로 분석한 기록은 1인분 값도 같이 맞춰 다른 화면의 계산이 어긋나지 않게 한다.
+      const servings = +meal.servings || 1;
+      ['kcal', 'protein', 'carbs', 'fat'].forEach(key => { const perKey = `${key}PerServing`; if (perKey in meal) meal[perKey] = values[key] / servings; });
+    }
+    writeState(state);
+    editingMealId = null;
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    renderMealDays();
+    showToast(id === 'new' ? '식사를 추가했어요.' : '식사 기록을 수정했어요.');
   }
 
   function renderManager(message = '') {
@@ -633,7 +774,7 @@
       card = document.createElement('section');
       card.id = 'lunchManager';
       card.className = 'card lunch-manager';
-      photo.insertAdjacentElement('afterend', card);
+      ($('#mealDays') || photo).insertAdjacentElement('afterend', card);
     }
     const state = readState();
     const dates = Object.keys(state.lunch?.days || {}).sort();
@@ -652,6 +793,7 @@
 
   function render() {
     renderHomeCard();
+    renderMealDays();
     renderManager();
   }
 
@@ -701,6 +843,15 @@
     cleanSavedMenus();
     const style = document.createElement('style');
     style.textContent = `
+      .section-head.first{margin-top:6px}
+      .warn-link{color:#c2573c!important}
+      .meal-days{margin:10px 0;padding:14px}.meal-days-head strong{display:block;font-size:16px}.meal-days-head small{display:block;margin-top:3px;color:var(--sub);font-size:12px;line-height:1.5}
+      .meal-day-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:12px 0 8px}.meal-day-chips button{position:relative;min-height:50px;border:1px solid var(--line);border-radius:12px;background:#f7fbf9;display:grid;place-items:center;align-content:center;gap:2px;padding:4px 2px}.meal-day-chips b{font-size:12px}.meal-day-chips small{color:var(--sub);font-size:10px}.meal-day-chips button.on{border-color:#17372c;background:#fff;box-shadow:inset 0 0 0 1px #17372c}.meal-day-chips .dot{position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:50%;background:#e8603c}
+      .meal-day-summary{margin:4px 0 8px;color:var(--sub);font-size:13px}.meal-day-summary b{color:var(--ink)}
+      .meal-lunch{margin:8px 0;padding:11px 12px;border-radius:14px;background:#fffaf0;border:1px solid #f1e5cc}.meal-lunch-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.meal-lunch-head b{font-size:14px}.meal-lunch-menu{margin:6px 0 2px;color:var(--sub);font-size:12px;line-height:1.5}.meal-lunch-total{margin:8px 0 0;font-size:12px;font-weight:800}
+      .meal-day-group{margin-top:10px}.meal-day-group h4{display:flex;justify-content:space-between;margin:0 0 4px;font-size:13px}.meal-day-group h4 span{color:var(--sub);font-weight:700}.meal-day-item{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:4px;padding:8px 0;border-top:1px dashed var(--line)}.meal-day-item b{display:block;font-size:14px}.meal-day-item small{display:block;margin-top:2px;color:var(--sub);font-size:11px;line-height:1.4}.meal-day-item .link{padding:6px 5px;font-size:12px}.meal-day-empty{margin:12px 0;color:var(--sub);font-size:13px;text-align:center}
+      .meal-edit{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:8px 0;padding:10px;border-radius:13px;background:#f3f9f6}.meal-edit [name=name]{grid-column:1/-1}.meal-edit label{display:block}.meal-edit label span{display:block;margin-bottom:2px;color:var(--sub);font-size:11px}.meal-edit .input,.meal-edit .select{padding:9px 10px;font-size:15px}.meal-edit label:nth-of-type(n){grid-column:auto}.meal-edit-actions{grid-column:1/-1;display:flex;gap:8px;align-items:center}.meal-add{margin-top:10px}
+      .lunch-card.compact{margin-top:8px;padding:11px 13px}.lunch-card.compact .lunch-row strong{display:block;margin-top:3px;font-size:14px;line-height:1.35}.lunch-card.compact .lunch-row small{display:block;margin-top:3px;color:var(--sub);font-size:12px}.lunch-card.compact .lunch-row small span{opacity:.8}.lunch-card.compact .lunch-eyebrow .badge{margin-left:4px;padding:1px 6px;font-size:10px;vertical-align:1px}.lunch-card.compact .lunch-actions{margin-top:8px;gap:6px}.lunch-card.compact .lunch-actions .link{padding:6px 4px;font-size:12px}.primary.small{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px}.lunch-done{color:#2f8467;font-size:12px;font-weight:900}.lunch-card.compact .lunch-items b{font-size:13px}.lunch-card.compact .lunch-bar{margin-top:8px}
       .lunch-card{margin-top:9px;padding:14px;background:linear-gradient(150deg,#fffaf0,#fff 60%)}.lunch-head{display:flex;justify-content:space-between;align-items:start;gap:8px}.lunch-head strong{display:block;margin-top:3px;font-size:16px;line-height:1.35}.lunch-head small{display:block;margin-top:4px;color:var(--sub);font-size:12px;line-height:1.5}.lunch-eyebrow{color:#b0701e;font-size:11px;font-weight:900}
       .lunch-target{margin:8px 0 4px;color:var(--sub);font-size:12px}.lunch-target em{margin-left:4px;padding:2px 7px;border-radius:99px;background:#f1f6f4;font-style:normal;font-weight:800}
       .lunch-items{margin:6px 0 0;padding:0;list-style:none}.lunch-items li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px dashed #ece3d2}.lunch-items li.skip b{color:#a3b3ad;text-decoration:line-through}.lunch-items b{display:block;font-size:14px}.lunch-items small{display:block;margin-top:2px;color:#8b6a3e;font-size:11px}
@@ -726,7 +877,7 @@
     document.addEventListener('click', event => {
       const step = event.target.closest('[data-lunch-step]');
       if (step) {
-        const date = $('#lunchGuide')?.dataset.date;
+        const date = step.closest('[data-lunch-date]')?.dataset.lunchDate;
         const state = readState();
         const guide = state.lunch?.guides?.[date];
         const item = guide?.items[+step.dataset.index];
@@ -735,16 +886,20 @@
         guide.edited = true;
         writeState(state);
         renderHomeCard();
+        renderMealDays();
         return;
       }
-      if (event.target.closest('[data-lunch-log]')) {
-        const date = $('#lunchGuide')?.dataset.date;
+      const logButton = event.target.closest('[data-lunch-log]');
+      if (logButton) {
+        const date = logButton.closest('[data-lunch-date]')?.dataset.lunchDate;
         const state = readState();
         const guide = state.lunch?.guides?.[date];
-        if (!guide || date !== dateKey(new Date())) return;
+        if (!guide || !recentDates().includes(date)) return;
         state.logs ||= {};
         state.logs[date] ||= { meals: [], workouts: [] };
         state.logs[date].meals ||= [];
+        // 다시 기록하면 예전에 급식으로 기록한 점심을 새 양으로 바꾼다.
+        if (logButton.dataset.relog || guide.loggedAt) state.logs[date].meals = state.logs[date].meals.filter(meal => meal.src !== 'lunch');
         guide.items.filter(item => item.portion > 0).forEach(item => state.logs[date].meals.push({
           id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, meal: '점심', name: item.name,
           amount: `급식 ${portionText(item.portion, item.role, item.name)}`, servings: item.portion,
@@ -753,14 +908,52 @@
         }));
         guide.loggedAt = new Date().toISOString();
         writeState(state);
+        relogDate = null;
         window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
         renderHomeCard();
-        showToast('급식 점심을 식단에 기록했어요.');
+        renderMealDays();
+        showToast(`${prettyDate(date)} 급식 점심을 식단에 기록했어요.`);
         return;
       }
+      const dayButton = event.target.closest('[data-meal-day]');
+      if (dayButton) {
+        mealDate = dayButton.dataset.mealDay;
+        editingMealId = null;
+        relogDate = null;
+        renderMealDays();
+        setTimeout(() => $('#mealDays')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+        return;
+      }
+      const editButton = event.target.closest('[data-meal-edit]');
+      if (editButton) { editingMealId = editButton.dataset.mealEdit; renderMealDays(); $('#mealDays [data-meal-form] input')?.focus(); return; }
+      if (event.target.closest('[data-meal-new]')) { editingMealId = 'new'; renderMealDays(); $('#mealDays [data-meal-form] input')?.focus(); return; }
+      if (event.target.closest('[data-meal-cancel]')) { editingMealId = null; renderMealDays(); return; }
+      const deleteButton = event.target.closest('[data-meal-del]');
+      if (deleteButton) {
+        const state = readState();
+        const log = state.logs?.[mealDate];
+        if (!log) return;
+        const removed = (log.meals || []).find(meal => meal.id === deleteButton.dataset.mealDel);
+        log.meals = (log.meals || []).filter(meal => meal.id !== deleteButton.dataset.mealDel);
+        // 급식으로 기록한 음식을 모두 지우면 그 날 급식을 다시 기록할 수 있게 한다.
+        if (removed?.src === 'lunch' && !log.meals.some(meal => meal.src === 'lunch') && state.lunch?.guides?.[mealDate]) delete state.lunch.guides[mealDate].loggedAt;
+        writeState(state);
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+        renderMealDays();
+        renderHomeCard();
+        showToast('식사 기록을 삭제했어요.');
+        return;
+      }
+      if (event.target.closest('[data-lunch-relog]')) { relogDate = event.target.closest('[data-lunch-date]')?.dataset.lunchDate; renderMealDays(); return; }
+      if (event.target.closest('[data-lunch-relog-cancel]')) { relogDate = null; renderMealDays(); return; }
       if (event.target.closest('[data-lunch-ai]')) {
-        const date = $('#lunchGuide')?.dataset.date;
+        const date = event.target.closest('[data-lunch-date]')?.dataset.lunchDate;
         if (date) upgradeWithAi(date, true);
+        return;
+      }
+      if (event.target.closest('[data-lunch-toggle]')) {
+        lunchExpanded = !lunchExpanded;
+        renderHomeCard();
         return;
       }
       if (event.target.closest('[data-lunch-dismiss]')) {
@@ -781,6 +974,21 @@
       }
     });
 
+    // 식단 화면 아래 입력칸("식사 추가")은 앱 본체가 저장하므로, 저장 직후 식사 기록 카드를 다시 그린다.
+    document.addEventListener('click', event => { if (event.target.closest('#saveMeal')) setTimeout(renderMealDays, 60); });
+    document.addEventListener('submit', event => {
+      const form = event.target.closest('[data-meal-form]');
+      if (!form) return;
+      event.preventDefault();
+      saveMealForm(form);
+    });
+    // 식단 화면의 기존 "오늘 식사 목록"은 날짜를 고를 수 있는 식사 기록 카드로 대신한다.
+    const oldList = $('#mealList');
+    if (oldList) {
+      oldList.classList.add('hidden');
+      if (oldList.previousElementSibling?.classList.contains('section-head')) oldList.previousElementSibling.classList.add('hidden');
+    }
+
     // 매일 처음 열 때(또는 다시 볼 때) 오늘 가이드를 만들고, AI가 연결돼 있으면 한 번 더 정확하게 계산한다.
     const refresh = () => {
       render();
@@ -789,7 +997,10 @@
     };
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
     window.addEventListener('hashchange', () => { if (['#home', '#meals'].includes(location.hash)) render(); });
-    window.addEventListener('fitlog:state-updated', () => { if (!$('#lunchGuide')?.contains(document.activeElement)) renderHomeCard(); });
+    window.addEventListener('fitlog:state-updated', () => {
+      if (!$('#lunchGuide')?.contains(document.activeElement)) renderHomeCard();
+      if (!$('#mealDays')?.contains(document.activeElement)) renderMealDays();
+    });
     refresh();
   }
 
