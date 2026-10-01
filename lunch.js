@@ -654,6 +654,7 @@
   const MEAL_TYPES = ['아침', '점심', '저녁', '간식'];
   let mealDate = null;
   let editingMealId = null;
+  let highlightMealId = null;
   let relogDate = null;
   const recentDates = () => Array.from({ length: 5 }, (_, index) => { const date = new Date(); date.setDate(date.getDate() - index); return dateKey(date); });
   const mealTotal = (meals, key = 'kcal') => Math.round(meals.reduce((sum, meal) => sum + (+meal[key] || 0), 0));
@@ -718,7 +719,7 @@
     }).join('');
     const types = [...MEAL_TYPES, ...new Set(meals.map(meal => meal.meal).filter(type => type && !MEAL_TYPES.includes(type)))];
     const groups = types.map(type => ({ type, items: meals.filter(meal => (meal.meal || '간식') === type) })).filter(group => group.items.length);
-    const list = groups.length ? groups.map(group => `<div class="meal-day-group"><h4>${esc(group.type)} <span>${mealTotal(group.items).toLocaleString()}kcal</span></h4>${group.items.map(meal => editingMealId === meal.id ? mealEditForm(meal) : `<div class="meal-day-item"><div><b>${esc(meal.name)}</b><small>${[meal.amount, `${Math.round(+meal.kcal || 0)}kcal`, +meal.protein ? `단백질 ${Math.round(+meal.protein)}g` : ''].filter(Boolean).map(esc).join(' · ')}</small></div><button type="button" class="link" data-meal-edit="${esc(meal.id)}">수정</button><button type="button" class="link danger" data-meal-del="${esc(meal.id)}">삭제</button></div>`).join('')}</div>`).join('') : `<p class="meal-day-empty">${label(mealDate)} 식사 기록이 아직 없어요.</p>`;
+    const list = groups.length ? groups.map(group => `<div class="meal-day-group"><h4>${esc(group.type)} <span>${mealTotal(group.items).toLocaleString()}kcal</span></h4>${group.items.map(meal => editingMealId === meal.id ? mealEditForm(meal) : `<div class="meal-day-item${meal.id === highlightMealId ? ' flash' : ''}" data-meal-id="${esc(meal.id)}"><div><b>${esc(meal.name)}</b><small>${[meal.amount, `${Math.round(+meal.kcal || 0)}kcal`, +meal.protein ? `단백질 ${Math.round(+meal.protein)}g` : ''].filter(Boolean).map(esc).join(' · ')}</small></div><button type="button" class="link" data-meal-edit="${esc(meal.id)}">수정</button><button type="button" class="link danger" data-meal-del="${esc(meal.id)}">삭제</button></div>`).join('')}</div>`).join('') : `<p class="meal-day-empty">${label(mealDate)} 식사 기록이 아직 없어요.</p>`;
     let lunchBlock = '';
     const entry = lunchEntry(state, mealDate);
     if (entry && mealDate <= today) {
@@ -744,13 +745,15 @@
     const data = new FormData(form);
     const name = String(data.get('name') || '').trim();
     if (!name) { showToast('음식 이름을 적어주세요.'); return; }
-    const values = { name, meal: String(data.get('meal') || '간식'), kcal: Math.max(0, Math.round(+data.get('kcal') || 0)), protein: Math.max(0, +data.get('protein') || 0), carbs: Math.max(0, +data.get('carbs') || 0), fat: Math.max(0, +data.get('fat') || 0) };
+    // updatedAt: 여러 기기 동기화 때 나중에 고친 내용이 이기도록 수정 시각을 남긴다.
+    const values = { name, meal: String(data.get('meal') || '간식'), kcal: Math.max(0, Math.round(+data.get('kcal') || 0)), protein: Math.max(0, +data.get('protein') || 0), carbs: Math.max(0, +data.get('carbs') || 0), fat: Math.max(0, +data.get('fat') || 0), updatedAt: new Date().toISOString() };
     const state = readState();
     state.logs ||= {};
     state.logs[mealDate] ||= { meals: [], workouts: [] };
     const meals = state.logs[mealDate].meals ||= [];
     const id = form.dataset.mealForm;
-    if (id === 'new') meals.push({ id: newId(), ...values, src: 'manual' });
+    let savedId = id;
+    if (id === 'new') { savedId = newId(); meals.push({ id: savedId, ...values, src: 'manual' }); }
     else {
       const meal = meals.find(item => item.id === id);
       if (!meal) return;
@@ -762,8 +765,20 @@
     writeState(state);
     editingMealId = null;
     window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    // 저장한 기록으로 화면을 옮기고 잠깐 강조한다.
+    highlightMealId = savedId;
     renderMealDays();
+    $(`#mealDays [data-meal-id="${savedId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    clearTimeout(saveMealForm.timer);
+    saveMealForm.timer = setTimeout(() => { highlightMealId = null; $('#mealDays .meal-day-item.flash')?.classList.remove('flash'); }, 2200);
     showToast(id === 'new' ? '식사를 추가했어요.' : '식사 기록을 수정했어요.');
+  }
+
+  // 지운 기록을 기억해 두면 여러 기기 동기화 때 다시 살아나지 않는다(sync.js가 사용).
+  function markDeleted(state, ids) {
+    state.deletedIds ||= {};
+    const now = new Date().toISOString();
+    ids.filter(Boolean).forEach(id => { state.deletedIds[id] = now; });
   }
 
   function renderManager(message = '') {
@@ -793,7 +808,7 @@
 
   function render() {
     renderHomeCard();
-    renderMealDays();
+    if (!editingMealId) renderMealDays();
     renderManager();
   }
 
@@ -850,7 +865,7 @@
       .meal-day-summary{margin:4px 0 8px;color:var(--sub);font-size:13px}.meal-day-summary b{color:var(--ink)}
       .meal-lunch{margin:8px 0;padding:11px 12px;border-radius:14px;background:#fffaf0;border:1px solid #f1e5cc}.meal-lunch-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.meal-lunch-head b{font-size:14px}.meal-lunch-menu{margin:6px 0 2px;color:var(--sub);font-size:12px;line-height:1.5}.meal-lunch-total{margin:8px 0 0;font-size:12px;font-weight:800}
       .meal-day-group{margin-top:10px}.meal-day-group h4{display:flex;justify-content:space-between;margin:0 0 4px;font-size:13px}.meal-day-group h4 span{color:var(--sub);font-weight:700}.meal-day-item{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:4px;padding:8px 0;border-top:1px dashed var(--line)}.meal-day-item b{display:block;font-size:14px}.meal-day-item small{display:block;margin-top:2px;color:var(--sub);font-size:11px;line-height:1.4}.meal-day-item .link{padding:6px 5px;font-size:12px}.meal-day-empty{margin:12px 0;color:var(--sub);font-size:13px;text-align:center}
-      .meal-edit{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:8px 0;padding:10px;border-radius:13px;background:#f3f9f6}.meal-edit [name=name]{grid-column:1/-1}.meal-edit label{display:block}.meal-edit label span{display:block;margin-bottom:2px;color:var(--sub);font-size:11px}.meal-edit .input,.meal-edit .select{padding:9px 10px;font-size:15px}.meal-edit label:nth-of-type(n){grid-column:auto}.meal-edit-actions{grid-column:1/-1;display:flex;gap:8px;align-items:center}.meal-add{margin-top:10px}
+      .meal-edit{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:8px 0;padding:10px;border-radius:13px;background:#f3f9f6}.meal-edit [name=name]{grid-column:1/-1}.meal-edit label{display:block}.meal-edit label span{display:block;margin-bottom:2px;color:var(--sub);font-size:11px}.meal-edit .input,.meal-edit .select{padding:9px 10px;font-size:15px}.meal-edit label:nth-of-type(n){grid-column:auto}.meal-edit-actions{grid-column:1/-1;display:flex;gap:8px;align-items:center}.meal-add{margin-top:10px}.meal-day-item.flash{animation:mealFlash 2s ease}@keyframes mealFlash{0%,40%{background:#dcf5eb}100%{background:transparent}}
       .lunch-card.compact{margin-top:8px;padding:11px 13px}.lunch-card.compact .lunch-row strong{display:block;margin-top:3px;font-size:14px;line-height:1.35}.lunch-card.compact .lunch-row small{display:block;margin-top:3px;color:var(--sub);font-size:12px}.lunch-card.compact .lunch-row small span{opacity:.8}.lunch-card.compact .lunch-eyebrow .badge{margin-left:4px;padding:1px 6px;font-size:10px;vertical-align:1px}.lunch-card.compact .lunch-actions{margin-top:8px;gap:6px}.lunch-card.compact .lunch-actions .link{padding:6px 4px;font-size:12px}.primary.small{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px}.lunch-done{color:#2f8467;font-size:12px;font-weight:900}.lunch-card.compact .lunch-items b{font-size:13px}.lunch-card.compact .lunch-bar{margin-top:8px}
       .lunch-card{margin-top:9px;padding:14px;background:linear-gradient(150deg,#fffaf0,#fff 60%)}.lunch-head{display:flex;justify-content:space-between;align-items:start;gap:8px}.lunch-head strong{display:block;margin-top:3px;font-size:16px;line-height:1.35}.lunch-head small{display:block;margin-top:4px;color:var(--sub);font-size:12px;line-height:1.5}.lunch-eyebrow{color:#b0701e;font-size:11px;font-weight:900}
       .lunch-target{margin:8px 0 4px;color:var(--sub);font-size:12px}.lunch-target em{margin-left:4px;padding:2px 7px;border-radius:99px;background:#f1f6f4;font-style:normal;font-weight:800}
@@ -899,7 +914,10 @@
         state.logs[date] ||= { meals: [], workouts: [] };
         state.logs[date].meals ||= [];
         // 다시 기록하면 예전에 급식으로 기록한 점심을 새 양으로 바꾼다.
-        if (logButton.dataset.relog || guide.loggedAt) state.logs[date].meals = state.logs[date].meals.filter(meal => meal.src !== 'lunch');
+        if (logButton.dataset.relog || guide.loggedAt) {
+          markDeleted(state, state.logs[date].meals.filter(meal => meal.src === 'lunch').map(meal => meal.id));
+          state.logs[date].meals = state.logs[date].meals.filter(meal => meal.src !== 'lunch');
+        }
         guide.items.filter(item => item.portion > 0).forEach(item => state.logs[date].meals.push({
           id: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, meal: '점심', name: item.name,
           amount: `급식 ${portionText(item.portion, item.role, item.name)}`, servings: item.portion,
@@ -935,6 +953,8 @@
         if (!log) return;
         const removed = (log.meals || []).find(meal => meal.id === deleteButton.dataset.mealDel);
         log.meals = (log.meals || []).filter(meal => meal.id !== deleteButton.dataset.mealDel);
+        markDeleted(state, [deleteButton.dataset.mealDel]);
+        if (editingMealId === deleteButton.dataset.mealDel) editingMealId = null;
         // 급식으로 기록한 음식을 모두 지우면 그 날 급식을 다시 기록할 수 있게 한다.
         if (removed?.src === 'lunch' && !log.meals.some(meal => meal.src === 'lunch') && state.lunch?.guides?.[mealDate]) delete state.lunch.guides[mealDate].loggedAt;
         writeState(state);
@@ -975,7 +995,7 @@
     });
 
     // 식단 화면 아래 입력칸("식사 추가")은 앱 본체가 저장하므로, 저장 직후 식사 기록 카드를 다시 그린다.
-    document.addEventListener('click', event => { if (event.target.closest('#saveMeal')) setTimeout(renderMealDays, 60); });
+    document.addEventListener('click', event => { if (event.target.closest('#saveMeal')) setTimeout(() => { if (!editingMealId) renderMealDays(); }, 60); });
     document.addEventListener('submit', event => {
       const form = event.target.closest('[data-meal-form]');
       if (!form) return;
@@ -999,7 +1019,8 @@
     window.addEventListener('hashchange', () => { if (['#home', '#meals'].includes(location.hash)) render(); });
     window.addEventListener('fitlog:state-updated', () => {
       if (!$('#lunchGuide')?.contains(document.activeElement)) renderHomeCard();
-      if (!$('#mealDays')?.contains(document.activeElement)) renderMealDays();
+      // 수정 중일 때는 동기화 등으로 화면이 다시 그려져 입력이 원래 값으로 돌아가지 않게 한다.
+      if (!editingMealId && !$('#mealDays')?.contains(document.activeElement)) renderMealDays();
     });
     refresh();
   }
