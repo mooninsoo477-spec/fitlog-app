@@ -493,6 +493,8 @@
       target.innerHTML = `<div class="summary-empty"><strong>${pretty}</strong><span>아직 기록이 없어요.</span></div>`;
       return;
     }
+    // 예전 운동 기록에 id가 없으면 붙여서 수정·삭제할 수 있게 한다.
+    if ((log.workouts || []).some(workout => !workout.id)) { log.workouts.forEach(workout => { workout.id ||= crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`; }); writeState(state); }
     const meals = log.meals || [];
     const workouts = log.workouts || [];
     const kcal = Math.round(calories(log));
@@ -506,7 +508,8 @@
       const meta = [workout.minutes ? `${workout.minutesEstimated ? '약 ' : ''}${workout.minutes}분` : '', workout.rpe ? `RPE ${workout.rpe}` : '', workout.burnKcal ? `약 ${workout.burnKcal}kcal` : '', workoutVolume(workout) ? `볼륨 ${Math.round(workoutVolume(workout)).toLocaleString()}kg` : ''].filter(Boolean).join(' · ');
       return `<div class="day-workout"><b>${esc(workout.group || workout.type || '운동')}</b>${meta ? `<small>${meta}</small>` : ''}
         ${exercises.length ? `<ul>${exercises.map(exercise => `<li><span>${esc(exercise.name)} <em>${esc(setSummary(exercise))}</em></span><span class="badges">${progressBadges(exerciseProgress(exercise, history))}</span></li>`).join('')}</ul>` : `<p>${esc(workout.note || workout.name || '')}</p>`}
-        ${workout.comment ? `<p class="day-comment">💬 ${esc(workout.comment)}</p>` : ''}</div>`;
+        ${workout.comment ? `<p class="day-comment">💬 ${esc(workout.comment)}</p>` : ''}
+        <div class="day-workout-actions"><button type="button" class="link" data-workout-edit="${esc(workout.id)}">수정</button><button type="button" class="link danger" data-workout-del="${esc(workout.id)}">삭제</button></div></div>`;
     });
     const extras = [
       log.weight ? `공복 체중 ${log.weight}kg` : '', log.bodyFat ? `체지방 ${log.bodyFat}%` : '',
@@ -519,7 +522,41 @@
       ${extras.length || log.workoutNote || log.eventNote ? `<section class="day-block"><h3>체크인·기타</h3><p>${esc([...extras, log.workoutNote, log.eventNote].filter(Boolean).join(' · '))}</p></section>` : ''}`;
   }
 
+  let editingWorkout = null;
+
+  function setWorkoutEditMode(info) {
+    editingWorkout = info;
+    const save = $('#saveWorkout');
+    if (save) save.textContent = info ? '수정 저장' : '운동 저장';
+    let banner = $('#workoutEditBanner');
+    if (!info) { banner?.remove(); return; }
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'workoutEditBanner';
+      banner.className = 'edit-banner';
+      $('#workoutForm')?.prepend(banner);
+    }
+    banner.innerHTML = `<span>✏️ ${shortDate(info.date)} 운동 기록 수정 중</span><button type="button" class="link" data-workout-edit-cancel>취소</button>`;
+  }
+
+  function startWorkoutEdit(date, id) {
+    const state = readState();
+    const workout = (state.logs?.[date]?.workouts || []).find(item => item.id === id);
+    if (!workout) return;
+    const exercises = workoutExercises(workout);
+    fillWorkoutFrom(workout);
+    if ($('#workoutMinutes')) $('#workoutMinutes').value = workout.minutes && !workout.minutesEstimated ? workout.minutes : '';
+    if ($('#workoutComment')) $('#workoutComment').value = workout.comment || '';
+    if ($('#workoutKcal')) $('#workoutKcal').value = workout.kcal || '';
+    setRpe(workout.rpe || null);
+    setWorkoutEditMode({ date, id });
+    renderWorkoutDraft();
+    $('#workoutForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast('기록을 불러왔어요. 고친 뒤 "수정 저장"을 눌러주세요.');
+  }
+
   function installCalendar() {
+
     const legacy = $('#workoutList');
     if (!legacy || $('#calendarArchive')) return;
     legacy.classList.add('hidden');
@@ -538,6 +575,23 @@
     $('#prevMonth').onclick = () => { calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1); renderCalendar(); };
     $('#nextMonth').onclick = () => { calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1); renderCalendar(); };
     archive.addEventListener('click', event => {
+      const editButton = event.target.closest('[data-workout-edit]');
+      if (editButton) { startWorkoutEdit(selectedDate, editButton.dataset.workoutEdit); return; }
+      const deleteButton = event.target.closest('[data-workout-del]');
+      if (deleteButton) {
+        if (!confirm('이 운동 기록을 삭제할까요?')) return;
+        const state = readState();
+        const log = state.logs?.[selectedDate];
+        if (!log) return;
+        log.workouts = (log.workouts || []).filter(workout => workout.id !== deleteButton.dataset.workoutDel);
+        // 지운 기록은 여러 기기 동기화 때 되살아나지 않게 표시해 둔다.
+        state.deletedIds = { ...(state.deletedIds || {}), [deleteButton.dataset.workoutDel]: new Date().toISOString() };
+        writeState(state);
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+        renderCalendar();
+        showToast('운동 기록을 삭제했어요.');
+        return;
+      }
       const button = event.target.closest('[data-calendar-date]');
       if (!button) return;
       selectedDate = button.dataset.calendarDate;
@@ -931,6 +985,7 @@
   }
 
   function resetWorkoutForm() {
+    if (typeof setWorkoutEditMode === 'function') setWorkoutEditMode(null);
     document.querySelectorAll('[name="wt"]').forEach(input => { input.checked = false; });
     ['#workoutNote', '#workoutKcal', '#workoutMinutes', '#workoutComment'].forEach(selector => { if ($(selector)) $(selector).value = ''; });
     setRpe(null);
@@ -955,6 +1010,23 @@
       comment: $('#workoutComment').value.trim(), burnKcal: estimate.kcal, cardioKcal: estimate.cardioKcal
     };
     if (manualKcal) record.kcal = manualKcal;
+    if (editingWorkout) {
+      const target = (state.logs?.[editingWorkout.date]?.workouts || []).find(item => item.id === editingWorkout.id);
+      if (target) {
+        Object.keys(target).forEach(key => { if (!['id', 'planDate'].includes(key)) delete target[key]; });
+        Object.assign(target, { ...record, id: target.id, updatedAt: new Date().toISOString() });
+        writeState(state);
+        window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+        const editedDate = editingWorkout.date;
+        resetWorkoutForm();
+        notice.classList.remove('warn');
+        notice.textContent = `${shortDate(editedDate)} 운동 기록을 수정했어요.`;
+        selectedDate = editedDate;
+        renderCalendar();
+        setTimeout(() => { notice.textContent = ''; $('#calendarArchive')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 600);
+        return;
+      }
+    }
     state.logs ||= {};
     state.logs[today] ||= { meals: [], workouts: [] };
     state.logs[today].workouts ||= [];
@@ -991,6 +1063,7 @@
       showToast('최근 기록을 불러왔어요. 무게·횟수만 바꿔 저장하세요.');
     };
     $('#saveWorkout').onclick = saveWorkoutRecord;
+    $('#workoutForm')?.addEventListener('click', event => { if (event.target.closest('[data-workout-edit-cancel]')) { resetWorkoutForm(); showToast('수정을 취소했어요.'); } });
     setRpe(null);
     syncCardioField();
   }
@@ -1018,7 +1091,41 @@
         <label><span>공복 체중</span><div class="unit-input"><input id="ciWeight" inputmode="decimal" value="${esc(log.weight || '')}" placeholder="${latestBodyWeight(state)}"><b>kg</b></div></label>
         <label><span>수면</span><div class="unit-input"><input id="ciSleep" inputmode="decimal" value="${esc(log.sleep || '')}" placeholder="7"><b>시간</b></div></label>
       </div>
-      <div class="condition-chips" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [emoji, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}"><span>${emoji}</span><small>${label}</small></button>`).join('')}</div>`;
+      <div class="condition-chips" role="radiogroup" aria-label="컨디션">${Object.entries(CONDITIONS).map(([value, [emoji, label]]) => `<button type="button" data-condition="${value}" class="${+log.condition === +value ? 'on' : ''}" aria-label="컨디션 ${label}"><span>${emoji}</span><small>${label}</small></button>`).join('')}</div>
+      <button type="button" class="primary mint small full checkin-save" data-checkin-save>체크인 저장</button>`;
+  }
+
+  const parseSleep = raw => {
+    const text = String(raw || '').trim();
+    const clock = text.match(/^(\d{1,2})[:시]\s*(\d{1,2})?/);
+    return clock ? +clock[1] + (+clock[2] || 0) / 60 : +text.replace(',', '.');
+  };
+
+  // 저장 버튼: 적은 칸을 한 번에 저장하고 요약으로 접는다.
+  function saveCheckinForm() {
+    const card = $('#checkin');
+    const weightRaw = $('#ciWeight')?.value.trim();
+    const sleepRaw = $('#ciSleep')?.value.trim();
+    const condition = +card.querySelector('[data-condition].on')?.dataset.condition || null;
+    const patch = {};
+    if (weightRaw) {
+      const weight = +weightRaw.replace(',', '.');
+      if (!(weight >= 20 && weight <= 300)) return showToast('체중을 kg 단위로 적어주세요.');
+      patch.weight = Math.round(weight * 10) / 10;
+    }
+    if (sleepRaw) {
+      const hours = parseSleep(sleepRaw);
+      if (!(hours > 0 && hours <= 16)) return showToast('수면 시간을 숫자로 적어주세요. 예: 7.5');
+      patch.sleep = Math.round(hours * 10) / 10;
+    }
+    if (condition) patch.condition = condition;
+    if (!Object.keys(patch).length) return showToast('공복 체중·수면·컨디션 중 하나 이상 적어주세요.');
+    saveCheckin(patch);
+    checkinEditing = false;
+    renderCheckin();
+    updateMascot();
+    window.dispatchEvent(new CustomEvent('fitlog:state-updated'));
+    showToast('아침 체크인을 저장했어요.');
   }
 
   function saveCheckin(patch) {
@@ -1043,6 +1150,7 @@
     card.dataset.enhanced = 'true';
     card.addEventListener('click', event => {
       if (event.target.closest('[data-checkin-edit]')) { checkinEditing = true; renderCheckin(); return; }
+      if (event.target.closest('[data-checkin-save]')) { saveCheckinForm(); return; }
       const chip = event.target.closest('[data-condition]');
       if (!chip) return;
       card.querySelectorAll('[data-condition]').forEach(button => button.classList.toggle('on', button === chip));
@@ -1364,6 +1472,7 @@
       .badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:99px;background:#eef3f1;color:#5d736b;font-size:11px;font-style:normal;font-weight:800;white-space:nowrap}.badge.up{background:#dcf5eb;color:#23775a}.badge.down{background:#ffece6;color:#b05243}.badge.pr{background:#fff1c7;color:#8a6200}.badges{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
       .parsed li small.prev-hint{display:block;margin-top:3px;color:#2f8467;font-size:11px;line-height:1.4}
       .input-hint{margin:6px 2px 0;color:var(--sub);font-size:12px;line-height:1.5}.input-hint b{color:var(--ink)}
+      .day-workout-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:4px}.day-workout-actions .link{padding:4px 6px;font-size:12px}.edit-banner{display:flex;justify-content:space-between;align-items:center;margin:-2px 0 10px;padding:8px 10px;border-radius:12px;background:#fff4dc;font-size:13px;font-weight:800}.edit-banner .link{padding:2px 4px;font-size:12px}
       .parsed{margin:0 0 12px;padding:12px;border-radius:15px;background:#f3f9f6;color:var(--sub);font-size:12px}.parsed-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.parsed-head b{color:#c2573c;font-size:14px}.parsed ul{margin:8px 0 0;padding:0;list-style:none}.parsed li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed #dcebe5}.parsed li strong,.parsed li span{display:block}.parsed li strong{color:var(--ink);font-size:13px}.parsed li span{margin-top:2px;font-size:12px}.parsed-foot{margin-top:6px;padding-top:8px;border-top:1px solid #dcebe5;font-size:12px}.parsed-foot b{color:#2f8467}
       .workout-meta{display:grid;grid-template-columns:112px 1fr;gap:10px}.workout-meta .field>span small{color:#2f8467;font-weight:800}.rpe-chips{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.rpe-chips button{height:44px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;font-weight:900}.rpe-chips button.on{background:#17372c;border-color:#17372c;color:#fff}
       .plan-card{margin-bottom:12px;padding:15px}.plan-card:empty{display:none}.plan-eyebrow{display:block;color:#477e9d;font-size:11px;font-weight:950;letter-spacing:.3px}.plan-empty{display:grid;gap:6px}.plan-empty strong{font-size:17px}.plan-empty small{color:var(--sub);font-size:12px;line-height:1.55}.plan-empty .primary{margin-top:6px}.plan-loading{min-height:120px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center}.plan-loading small{color:var(--sub);font-size:12px}
@@ -1371,7 +1480,7 @@
       .plan-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:12px 0}.plan-day{min-width:0;padding:7px 0 6px;border:1px solid transparent;border-radius:13px;background:#f3f8f6;display:grid;justify-items:center;gap:3px}.plan-day span{color:var(--sub);font-size:11px}.plan-day b{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#fff;font-size:12px}.plan-day small{max-width:100%;overflow:hidden;color:var(--sub);font-size:10px;white-space:nowrap}.plan-day.done b{background:var(--mint);color:#fff}.plan-day.missed b{background:#ffd9cf;color:#b05243}.plan-day.rest{background:#fafcfb}.plan-day.rest b{background:transparent;color:#a3b3ad}.plan-day.is-today span{color:var(--ink);font-weight:900}.plan-day.selected{border-color:#17372c;background:#fff}.plan-day:disabled{opacity:.4}
       .plan-detail{padding:12px;border-radius:15px;background:#f7fbf9}.plan-detail.rest p{margin:6px 0 0;color:var(--sub);font-size:13px;line-height:1.55}.plan-detail-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.plan-detail-head strong{font-size:14px}.plan-exercises{margin:8px 0 0;padding:0;list-style:none;counter-reset:ex}.plan-exercises li{display:flex;justify-content:space-between;align-items:start;gap:10px;padding:8px 0;border-top:1px dashed #dcebe5}.plan-exercises li strong{display:block;font-size:13px}.plan-exercises li small{display:block;margin-top:2px;color:#2f8467;font-size:11px;line-height:1.45}.plan-exercises li b{flex:none;font-size:13px}.plan-note{margin:8px 0 0;color:var(--sub);font-size:12px;line-height:1.5}.plan-detail .primary{margin-top:10px}
       .hero-list{margin:6px 0 12px;padding:0;list-style:none}.hero-list li{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #17372c12;font-size:13px}.hero-list li b{white-space:nowrap}.hero-list li.more{color:var(--sub);border:0}
-      .checkin{margin-top:9px;padding:12px 14px}.checkin-head{display:flex;align-items:baseline;gap:7px;margin-bottom:9px}.checkin-head strong{font-size:14px}.checkin-head small{color:var(--sub);font-size:11px}.checkin-saved{margin-left:auto;color:#2f8467;font-size:11px;font-weight:800}.checkin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.checkin-grid label>span{display:block;margin-bottom:4px;color:var(--sub);font-size:11px}.unit-input{position:relative}.unit-input input{width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;padding:0 42px 0 11px;font-size:16px}.unit-input b{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:12px}.condition-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:9px}.condition-chips button{height:48px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;display:grid;place-items:center;align-content:center;gap:1px}.condition-chips span{font-size:18px;line-height:1}.condition-chips small{color:var(--sub);font-size:10px}.condition-chips button.on{border-color:#72d1ae;background:#dcf5eb}.checkin.done{display:flex;align-items:center;gap:8px}.checkin.done .checkin-title{color:var(--sub);font-size:12px;white-space:nowrap}.checkin.done b{flex:1;font-size:13px}.checkin.done .link{padding:4px}
+      .checkin{margin-top:9px;padding:12px 14px}.checkin-head{display:flex;align-items:baseline;gap:7px;margin-bottom:9px}.checkin-head strong{font-size:14px}.checkin-head small{color:var(--sub);font-size:11px}.checkin-saved{margin-left:auto;color:#2f8467;font-size:11px;font-weight:800}.checkin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.checkin-grid label>span{display:block;margin-bottom:4px;color:var(--sub);font-size:11px}.unit-input{position:relative}.unit-input input{width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;padding:0 42px 0 11px;font-size:16px}.unit-input b{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--sub);font-size:12px}.condition-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:9px}.condition-chips button{height:48px;border:1px solid var(--line);border-radius:12px;background:#f9fcfb;display:grid;place-items:center;align-content:center;gap:1px}.condition-chips span{font-size:18px;line-height:1}.condition-chips small{color:var(--sub);font-size:10px}.condition-chips button.on{border-color:#72d1ae;background:#dcf5eb}.checkin.done{display:flex;align-items:center;gap:8px}.checkin.done .checkin-title{color:var(--sub);font-size:12px;white-space:nowrap}.checkin.done b{flex:1;font-size:13px}.checkin.done .link{padding:4px}.checkin-save{margin-top:10px}
       .chart .axis{fill:#8a9c95;font-size:10px}.chart .bar-value{fill:#33514a;font-size:10px;font-weight:800}
       .ib-section{margin-top:12px}.ib-section+.ib-section{padding-top:12px;border-top:1px solid var(--line)}.ib-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}.ib-title strong{font-size:14px}.ib-title span{color:var(--sub);font-size:11px;text-align:right}.ib-row{display:grid;grid-template-columns:62px 1fr 74px;align-items:center;gap:8px;padding:7px 0}.ib-label{font-size:13px;font-weight:800}.ib-label small{margin-left:2px;color:var(--sub);font-size:10px;font-weight:600}.ib-track{position:relative;height:14px;border-radius:4px;background:repeating-linear-gradient(90deg,#eef4f1 0 calc(10% - 1px),#fff calc(10% - 1px) 10%)}.ib-band{position:absolute;top:-3px;bottom:-3px;border-radius:4px;background:#72d1ae33;border:1px dashed #72d1ae}.ib-fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0}.ib-value{font-size:15px;text-align:right}.ib-value small{display:block;font-size:10px;font-weight:800}.ib-value small.ok{color:#2f8467}.ib-value small.warn{color:#c2573c}.ib-legend{margin:4px 0 0;color:var(--sub);font-size:11px}.ib-legend i{display:inline-block;width:14px;height:8px;margin-right:5px;border:1px dashed #72d1ae;background:#72d1ae33;border-radius:2px}
       .ib-history{overflow-x:auto;margin:0 -4px;padding:0 4px}.ib-history table{border-collapse:collapse;min-width:100%;font-size:12px}.ib-history th,.ib-history td{padding:6px 5px;text-align:right;white-space:nowrap}.ib-history thead th{color:var(--sub);font-weight:700}.ib-history tbody th{position:sticky;left:0;background:#fff;text-align:left;color:var(--sub);font-weight:800}.ib-history td b{display:block;font-size:13px}.ib-history td i{display:block;height:4px;margin:4px 0 0 auto;border-radius:3px;background:#b9d8cc}.ib-history .latest{background:#f1faf6}.ib-history td.latest b{color:#17372c}.ib-history td.latest i{background:#72d1ae}.ib-changes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:12px}.ib-changes em{color:var(--sub);font-style:normal}.ib-changes span{padding:4px 8px;border-radius:99px;background:#f1f5f3;font-weight:800}.ib-changes .good{background:#dcf5eb;color:#23775a}.ib-changes .bad{background:#ffece6;color:#b05243}.ib-target{margin:12px 0 0;padding:10px 12px;border-radius:13px;background:#fff8e1;font-size:13px;font-weight:800}
