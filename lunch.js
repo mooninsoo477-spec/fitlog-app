@@ -605,7 +605,7 @@
       placeCard(card);
       card.className = 'card lunch-card compact lunch-prompt';
       delete card.dataset.date;
-      card.innerHTML = `<div class="lunch-row"><div><span class="lunch-eyebrow">🍱 급식 먹는다면</span><strong>급식표를 올리면 점심 먹을 양을 알려드려요</strong></div></div>
+      card.innerHTML = `<div class="lunch-row"><div><span class="lunch-eyebrow">급식 먹는다면</span><strong>급식표를 올리면 점심 먹을 양을 알려드려요</strong></div></div>
         <div class="lunch-actions"><button type="button" class="primary mint small" data-go="meals" data-open="lunchManager">급식표 올리기</button><button type="button" class="link" data-lunch-dismiss>급식 안 먹어요</button></div>`;
       return;
     }
@@ -628,13 +628,13 @@
     const pending = pendingLunchDates(state);
     card.innerHTML = `
       <div class="lunch-row"><div>
-        <span class="lunch-eyebrow">🍱 ${isToday ? '오늘 급식' : `${prettyDate(date)} 급식 미리 보기`} · ${prettyDate(date)} <i class="badge ${guide.source === 'ai' ? 'up' : ''}">${badge}</i></span>
+        <span class="lunch-eyebrow">${isToday ? '오늘 급식' : `${prettyDate(date)} 급식 미리 보기`} · ${prettyDate(date)} <i class="badge ${guide.source === 'ai' ? 'up' : ''}">${badge}</i></span>
         <strong>${esc(headline(guide))}</strong>
         <small>이대로 먹으면 약 ${kcal.toLocaleString()}kcal · 단백질 ${protein}g <span>(점심 목표 ${guide.target.kcal.toLocaleString()}kcal)</span></small>
       </div></div>
       ${lunchExpanded ? `
         <ul class="lunch-items">${guide.items.map((item, index) => `<li class="${item.portion === 0 ? 'skip' : ''}"><div><b>${esc(item.name)}</b>${item.note ? `<small>${esc(item.note)}</small>` : ''}</div><div class="lunch-portion"><button type="button" data-lunch-step="-1" data-index="${index}" aria-label="${esc(item.name)} 줄이기">−</button><span>${portionText(item.portion, item.role, item.name)}</span><button type="button" data-lunch-step="1" data-index="${index}" aria-label="${esc(item.name)} 늘리기">＋</button></div></li>`).join('')}</ul>
-        ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>💡 ${esc(tip)}</li>`).join('')}</ul>` : ''}
+        ${(guide.tips || []).length ? `<ul class="lunch-tips">${guide.tips.map(tip => `<li>${esc(tip)}</li>`).join('')}</ul>` : ''}
         <div class="lunch-bar"><i style="width:${Math.min(100, ratio)}%" class="${ratio > 110 ? 'over' : ''}"></i></div>
         <small class="lunch-note">점심 목표 약 ${guide.target.kcal.toLocaleString()}kcal · 단백질 ${guide.target.protein}g (${esc(guide.goal)}) · ${guide.menuKcal ? `급식표 표기 ${guide.menuKcal}kcal 기준 · ` : ''}급식 1인분 기준 추정치예요.</small>` : ''}
       <div class="lunch-actions">
@@ -727,13 +727,13 @@
       const logged = lunchLogged(state, mealDate);
       const showGuide = guide && (!logged || relogDate === mealDate);
       lunchBlock = `<div class="meal-lunch" data-lunch-date="${mealDate}">
-        <div class="meal-lunch-head"><b>🏫 ${label(mealDate)} 급식</b>${logged ? '<span class="lunch-done">점심 기록됨 ✓</span>' : '<i class="badge down">미기록</i>'}</div>
+        <div class="meal-lunch-head"><b>${label(mealDate)} 급식</b>${logged ? '<span class="lunch-done">점심 기록됨 ✓</span>' : '<i class="badge down">미기록</i>'}</div>
         ${showGuide ? `${guideListMarkup(guide)}<div class="lunch-actions"><button type="button" class="primary mint small" data-lunch-log ${logged ? 'data-relog="1"' : ''}>${logged ? '이 양으로 다시 기록' : `${label(mealDate)} 점심으로 기록`}</button>${logged ? '<button type="button" class="link" data-lunch-relog-cancel>취소</button>' : ''}</div>${logged ? '<small class="lunch-note">다시 기록하면 이 날 급식으로 기록한 점심이 새 양으로 바뀌어요.</small>' : ''}`
           : `<p class="meal-lunch-menu">${esc(entry.items.join(' · '))}</p><button type="button" class="link" data-lunch-relog>급식 양 고쳐서 다시 기록</button>`}
       </div>`;
     }
     card.innerHTML = `
-      <div class="meal-days-head"><strong>🍽️ 식사 기록</strong><small>최근 5일 기록을 고치거나, 빠뜨린 식사를 그 날짜로 추가할 수 있어요.</small></div>
+      <div class="meal-days-head"><strong>최근 5일 기록</strong><small>최근 5일 기록을 고치거나, 빠뜨린 식사를 그 날짜로 추가할 수 있어요.</small></div>
       <div class="meal-day-chips">${chips}</div>
       <p class="meal-day-summary">${label(mealDate)} 합계 <b>${mealTotal(meals).toLocaleString()}kcal</b> · 단백질 ${mealTotal(meals, 'protein')}g</p>
       ${lunchBlock}
@@ -797,7 +797,7 @@
     const upcoming = dates.filter(date => date >= today).slice(0, 3);
     const share = +(state.lunch?.share || 0.35);
     card.innerHTML = `
-      <div class="lunch-head"><div><strong>🏫 급식표</strong><small>엑셀(.xlsx)이나 CSV를 올리면 매일 아침 홈 화면에 점심 가이드가 떠요. 파일은 이 기기 안에서만 읽어요.</small></div></div>
+      <div class="lunch-head"><div><strong>급식표</strong><small>엑셀(.xlsx)이나 CSV를 올리면 매일 아침 홈 화면에 점심 가이드가 떠요. 파일은 이 기기 안에서만 읽어요.</small></div></div>
       ${dates.length ? `<p class="lunch-status">${dates.length}일치 등록 · ${prettyDate(dates[0])}~${prettyDate(dates.at(-1))}${state.lunch.fileName ? ` · ${esc(state.lunch.fileName)}` : ''}</p>
         ${upcoming.length ? `<ul class="lunch-preview">${upcoming.map(date => `<li><b>${prettyDate(date)}</b><span>${esc(lunchEntry(state, date).items.join(' · '))}</span></li>`).join('')}</ul>` : '<p class="lunch-status">앞으로 남은 급식 일정이 없어요. 다음 달 급식표를 올려주세요.</p>'}` : ''}
       ${message ? `<p class="lunch-message">${message}</p>` : ''}
@@ -830,7 +830,7 @@
       renderHomeCard();
       showToast(`급식 ${count}일치를 등록했어요.`);
     } catch (error) {
-      renderManager(`⚠️ ${esc(error.message || '파일을 읽지 못했어요.')}`);
+      renderManager(`${esc(error.message || '파일을 읽지 못했어요.')}`);
     }
   }
 

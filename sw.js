@@ -1,5 +1,5 @@
-const CACHE = 'fitlog-public-1.4.1';
-const SHELL = ['./', './index.html', './app.js?v=1.4.1', './lunch.js?v=1.4.1', './manifest.webmanifest', './icon.png', './mascot/default.png'];
+const CACHE = 'fitlog-public-1.5.0';
+const SHELL = ['./', './index.html', './app.js?v=1.5.0', './lunch.js?v=1.5.0', './ui.js?v=1.5.0', './theme.css?v=1.5.0', './manifest.webmanifest', './icon.png', './mascot/default.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

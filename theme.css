@@ -1,0 +1,164 @@
+/* FitLog 깔끔한 테마: 흰 카드 · 얇은 선 · 강조색은 초록 하나. 모듈 스타일보다 나중에 읽혀 우선한다. */
+:root {
+  --bg: #f5f6f5;
+  --card: #fff;
+  --ink: #1c2521;
+  --sub: #6b736f;
+  --line: #e6e9e7;
+  --accent: #0f6e56;
+  --accent-bar: #1d9e75;
+  --accent-soft: #e6f4ee;
+  --accent-ink: #085041;
+  --mint: #1d9e75;
+  --muted-bar: #eef0ef;
+  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+
+/* 장식 걷어내기: 그림자·그라데이션·애니메이션 */
+.app *, .sheet, .sheet * { box-shadow: none !important; }
+.app *:not(.activity-ring):not(.score-ring), .sheet * { background-image: none !important; }
+.score-ring { background: conic-gradient(var(--accent-bar) calc(var(--p) * 1%), var(--muted-bar) 0) !important; }
+.welcome, #mascotMeter, .meal-emoji, .photo { display: none !important; }
+
+/* 글자 */
+.content { padding-top: calc(20px + env(safe-area-inset-top)); }
+.top { margin-bottom: 16px; }
+h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.eyebrow { color: var(--sub); font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.section-head { margin: 22px 2px 8px; }
+.section-head h2 { font-size: 15px; font-weight: 800; letter-spacing: -0.2px; }
+.link { color: var(--accent); font-weight: 700; }
+
+/* 카드 */
+.card, .hero, .recommend, .lunch-card, .checkin, .weekly-coach, .meal-recommendation, .calendar-card, .settings-fold, .mascot-meter {
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 16px !important;
+}
+.card + .card, .card + .hero, .hero + .card { margin-top: 10px; }
+
+/* 버튼 */
+.primary { min-height: 46px; border-radius: 12px; background: var(--ink); color: #fff; font-weight: 700; }
+.primary.mint, .primary.ai-save, .ai-save { background: var(--accent) !important; color: #fff !important; border: 0; }
+.primary.ghost, .hero-actions .ghost { background: #fff !important; color: var(--ink) !important; border: 1px solid var(--line) !important; }
+.primary:disabled { opacity: .55; }
+.circle { background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+
+/* 입력칸 */
+.input, .select, .textarea { background: #fff !important; border: 1px solid var(--line) !important; border-radius: 12px !important; }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--accent-bar) !important; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid #1d9e7566; }
+
+/* 진행 막대 */
+.track, .mini, .bar, .progress, .hero-progress .track { background: var(--muted-bar) !important; }
+#kcalFill, .track i, .mini i, .hero-progress .track i { background: var(--accent-bar) !important; }
+
+/* 오늘의 영양 */
+.nutrition { padding: 16px; }
+.nutrition .cal-line strong { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+.nutrition .cal-line > div > span { color: var(--sub); }
+#kcalMsg { color: var(--sub); font-size: 13px; font-weight: 600; }
+.macros { gap: 10px; }
+.macro { background: transparent !important; padding: 0 !important; border: 0 !important; }
+.macro span { color: var(--sub); font-size: 12px; }
+.macro b { font-size: 13px; }
+.macro small { color: var(--sub); }
+
+/* 오늘 계획 · 체크인 · 급식 */
+.hero { padding: 16px; }
+.hero h2 { font-size: 17px; }
+.tag, .lunch-eyebrow { background: var(--accent-soft) !important; color: var(--accent-ink) !important; }
+.checkin { padding: 14px 16px; }
+.condition-chips button { background: #fff !important; border: 1px solid var(--line) !important; border-radius: 12px !important; }
+.condition-chips button.on { background: var(--accent-soft) !important; border-color: var(--accent-bar) !important; color: var(--accent-ink); }
+.lunch-card { padding: 14px 16px; }
+.login-banner { background: var(--accent-soft) !important; border-radius: 12px !important; }
+
+/* 오늘 기록 목록 */
+#mealPreview { padding: 4px 14px; }
+.meal-row { grid-template-columns: 1fr auto !important; padding: 12px 0 !important; background: transparent !important; border-bottom: 1px solid var(--line) !important; border-radius: 0 !important; }
+.meal-row:last-child { border-bottom: 0 !important; }
+.meal-row strong { font-size: 14px; }
+.meal-row em { color: var(--ink); font-style: normal; font-weight: 700; }
+.recommend { width: 100%; margin-top: 10px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; }
+.recommend strong { display: block; font-size: 14px; }
+.recommend > span > span { color: var(--sub); font-size: 12px; }
+.recommend b { color: var(--sub); }
+
+/* 칩·탭 공통: 선택되면 초록 */
+.meal-type-tabs span, .routine-chips button, .rpe-chips button, .exercise-chips button, .choices label {
+  background: #fff !important; border: 1px solid var(--line) !important; border-radius: 12px !important; color: var(--ink);
+}
+.meal-type-tabs input:checked + span, .rpe-chips button.on, .choices label:has(input:checked) {
+  background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important;
+}
+.routine-chips button:active { background: var(--accent-soft) !important; }
+.photo-picker { background: #fff !important; border: 1px dashed #c9d2ce !important; grid-template-columns: 1fr !important; }
+.routine-bar { background: transparent !important; padding: 0 !important; border: 0 !important; }
+.parsed { background: #f7f8f7 !important; }
+.parsed .total { color: var(--accent); }
+.edit-meal { background: var(--accent-soft) !important; color: var(--accent-ink) !important; }
+
+/* 리포트 */
+.stat, .metric-tile, .coach-metric { background: #f7f8f7 !important; border: 0 !important; border-radius: 12px !important; }
+.weekly-coach { padding: 16px; }
+
+/* 하단 탭 */
+.bottom { background: #fff !important; border-top: 1px solid var(--line) !important; }
+.nav { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; }
+.nav button { background: transparent !important; color: #9aa29e; border: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 6px; font-size: 11px; font-weight: 600; }
+.nav button svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav button.active { color: var(--accent); }
+.nav button.plus, .nav .record-tab { transform: none !important; width: auto !important; height: auto !important; border-radius: 0 !important; }
+
+/* 기록 시트 */
+.sheet { border-radius: 20px 20px 0 0 !important; background: #fff !important; }
+.sheet-head h2 { font-size: 17px; }
+.quick { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+.quick button { display: flex !important; flex-direction: row !important; align-items: center; gap: 10px; min-height: 64px; padding: 0 16px; border: 1px solid var(--line) !important; border-radius: 14px !important; background: #fff !important; font-size: 15px; font-weight: 700; color: var(--ink); }
+.quick button svg { width: 24px; height: 24px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.quick button:active { background: var(--accent-soft) !important; }
+
+/* 토스트 */
+.toast { background: var(--ink) !important; color: #fff !important; border-radius: 12px !important; }
+
+/* 세부 다듬기 */
+#kcal, .nutrition .cal-line strong { color: var(--ink) !important; }
+.nutrition .cal-line > div { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.nutrition .cal-line > div > span { font-size: 14px; }
+.meal-group-row strong { color: var(--ink) !important; font-size: 13px !important; }
+.meal-group-row > span > span { color: var(--ink); font-size: 14px; font-weight: 600; }
+.meal-group-row small { color: var(--sub); }
+.condition-chips { gap: 6px !important; }
+.condition-chips button { min-height: 38px !important; padding: 0 !important; }
+.condition-chips button > span { display: none !important; }
+.condition-chips button small { font-size: 12px !important; font-weight: 600; color: inherit; }
+.hero-actions .ghost { min-height: 38px !important; font-size: 13px; }
+.hero p { color: var(--sub); }
+
+/* 리포트: 색은 의미 있는 곳에만 */
+.ib-track { background: var(--muted-bar) !important; }
+.ib-row:nth-child(2) .ib-fill { background: #8a938f !important; }
+.ib-row:nth-child(3) .ib-fill { background: var(--accent-bar) !important; }
+.ib-row:nth-child(4) .ib-fill, .ib-row:nth-child(5) .ib-fill { background: #c6ccc9 !important; }
+.ib-band { background: var(--accent-soft) !important; border-color: var(--accent-bar) !important; }
+.ib-target { background: #f7f8f7 !important; color: var(--ink) !important; border: 0 !important; }
+.ib-tabs { background: #f2f4f3 !important; }
+.ib-tabs button.on { color: var(--accent) !important; }
+.weekly-coach .metric, .report-grid > * { background: #f7f8f7 !important; border: 0 !important; border-radius: 12px !important; }
+.weekly-coach .metric.good small, .weekly-coach .metric.good em { color: var(--accent) !important; }
+.weekly-coach .metric.warn small, .weekly-coach .metric.warn em { color: #a35b12 !important; }
+.coach-title > span, .coach-title small { color: var(--accent) !important; }
+
+/* 설정 접이식 카드 */
+.settings-fold > summary { grid-template-columns: 1fr auto !important; min-height: 64px !important; padding: 14px 16px !important; }
+.settings-fold > summary > b { color: var(--sub); font-weight: 400; }
+.menu button, .menu label { background: #fff !important; }
+.backup-state { color: var(--sub); font-size: 12px; }
+.backup-state .dot { background: var(--accent-bar) !important; }
+.recommend strong { color: var(--ink) !important; }
+
+/* 공개용 운동 종류 선택 칸의 아이콘 */
+.kind-icon { display: none !important; }
